@@ -1,0 +1,9 @@
+[build]
+target = "./index.html"
+
+[serve]
+addresses = ["0.0.0.0"]
+port = 1440
+
+# [watch]
+# ignore = ["./src/app.rs"]

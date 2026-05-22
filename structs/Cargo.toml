@@ -1,0 +1,14 @@
+[package]
+name = "structs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "structs"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { workspace = true, features = ["derive", "rc"]}
+serde_json = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde"] }
+macros = { path = "../macros" }

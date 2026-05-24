@@ -1,8 +1,11 @@
-use std::{sync::Arc, collections::HashMap};
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use futures::channel::mpsc::UnboundedSender;
+use gloo_net::websocket::Message;
+use gloo_timers::future::sleep;
 use macros::string;
 use structs::{CName, CStatus, Map, Point};
-use sycamore::prelude::*;
-use crate::add_users::AddUsers;
+use sycamore::{futures::spawn_local, prelude::*};
+use crate::{add_users::AddUsers, libs::{ConnectParams, connect}};
 const CSS: &str = "border-radius: 10px; border: 2px solid black; background-color: white; padding: 5px; font-size: 14px; font-weight: bold;";
 
 #[component]
@@ -12,39 +15,64 @@ pub fn App() -> View {
     let status = create_signal(map.0.clone().into_iter().map(|(country_id,c)|{
         (country_id,CStatus { country_id, location: get_point(c.name()), tokens: None })
     }).collect::<HashMap<_,_>>());
-   
+    let error = create_signal(None::<String>);
+    let ws_sender: Signal<Option<UnboundedSender<Message>>> =
+        create_signal(None::<UnboundedSender<Message>>);
     create_memo(move || {
-        console_log!("=-=-= Estado del juego: =-=-= {:?}", status.get_clone());
+        let err = error.with(|e|e.is_some());
+        spawn_local(async move {
+            if err {
+                sleep(Duration::from_millis(2000)).await;
+                error.set(None);
+                // console_dbg!("Copied to false now");
+            }
+        });
     });
+    let connect_params = ConnectParams { map: map.clone(), users, status, ws_sender: ws_sender.clone() };
+    spawn_local(connect(connect_params));
     // console_dbg!(&map);
 
     view!{
         article(){
             img(src="./public/map.webp", alt="Mapa del juego",width="1200px", height="800px"){}
         }
-        AddUsers(map=map, users=users, status=status)
-        (status.get_clone().into_iter().map(|(_,c_status)|view!{
-            article(class="tokens"){
-                    p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c_status.location.x, c_status.location.y)){(match &c_status.tokens{
-                        None => string!("0"),
-                        Some(tokens) => format!("{}",tokens.amount),
-                    })}
-                }
-        }).collect::<Vec<View>>())
-        // Keyed(
-        //     list=status,
-        //     view=|c_status| view!{
-        //         article(class="tokens"){
-        //             p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c_status.location.x, c_status.location.y)){(match &c_status.tokens{
-        //                 None => string!("0"),
-        //                 Some(tokens) => format!("{}",tokens.amount),
-        //             })}
-        //         }
-        //     },
-        //     key=|c_status| c_status.id
-        // )
+        aside(id="side_forms"){
+            AddUsers(map=map, users=users, status=status, send = ws_sender, error = error)
+            (status.get_clone().into_iter().map(|(_,c_status)|view!{
+                article(class="tokens"){
+                        p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c_status.location.x, c_status.location.y)){(match &c_status.tokens{
+                            None => string!("0"),
+                            Some(tokens) => format!("{}",tokens.amount),
+                        })}
+                    }
+            }).collect::<Vec<View>>())
+            // Keyed(
+            //     list=status,
+            //     view=|c_status| view!{
+            //         article(class="tokens"){
+            //             p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c_status.location.x, c_status.location.y)){(match &c_status.tokens{
+            //                 None => string!("0"),
+            //                 Some(tokens) => format!("{}",tokens.amount),
+            //             })}
+            //         }
+            //     },
+            //     key=|c_status| c_status.id
+            // )
+            (match error.get_clone(){
+                Some(er) => view!{p(class="error"){(er)}},
+                None => view!{},
+            })
+        }
     }
 }
+
+#[derive(Copy,Clone,PartialEq, Eq, Debug)]
+enum AppStatus {
+    Login,
+    Lobby,
+    InGame,
+}
+
 
 pub fn get_point(name: CName) -> Point {
     match name {
@@ -114,8 +142,8 @@ Fusionar:
 
 NodosLibres: []
 
-                                            2: [0](78)[1]
-                                0: (34)(56)(78)(100)(176) 1: (100)(176)
+                                            2: [0](315)[1](485)[4](547)[5](639)[3]
+                        0: (148)(223) 1: (333)(390)(442)(454) 4: (508)(511) 5: (614)(633) 3: (789)(915)
 
 LE 0: Overflow: divido en 15 34 56 | 78 100 176, promuevo 78 al nuevo nodo padre
 E 1: 100 176

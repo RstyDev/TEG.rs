@@ -8,6 +8,7 @@ extern crate web_sys;
 mod structs;
 mod add_users;
 mod app;
+mod libs;
 use app::App;
 
 pub fn main() {

@@ -551,6 +551,8 @@ impl PartialEq for CStatus {
         self.country_id == other.country_id && self.location == other.location && self.tokens == other.tokens
     }
 }
+
+
 #[derive(Clone,Debug, PartialEq, Serialize, Deserialize)]
 pub struct Point {
     pub x: u32,
@@ -569,9 +571,9 @@ pub struct Tokens {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum MessageDTO {
-    AddPlayer { player: Player },
+    AddPlayer { player: Player},
     MakeMove { room_id: Uuid, player_id: Uuid, from: Uuid, to: Uuid, troops: u32 },
-    UpdateState { room_id: Uuid, status: CStatus },
+    UpdateState { statuses: Vec<CStatus> },
     StartGame { room_id: Uuid },
     MissionCompleted { room_id: Uuid },
 }

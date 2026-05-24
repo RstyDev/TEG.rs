@@ -28,6 +28,12 @@ pub fn string(input: TokenStream) -> TokenStream {
                 String::from(#literal)
             }.into()
         }
+        // Some(TokenTree::Ident(ident)) => {
+        //     println!("Ident: {:#?}", ident);
+        //     quote! {
+        //         String::from(#ident)
+        //     }.into()
+        // }
         None => quote! {
             String::new()
         }.into(),

@@ -21,7 +21,13 @@ pub struct Room {
     pub players: Arc<Mutex<HashMap<Uuid,Player>>>,
     pub countries: Map,
     pub status: Arc<Mutex<HashMap<Uuid,CStatus>>>,
-    pub tx: Sender<String>,
+    pub tx: Sender<SenderMessage>,
+}
+#[derive(Clone,Debug, Copy)]
+pub enum SenderMessage {
+    Move { room_id: Uuid, player_id: Uuid, from: Uuid, to: Uuid, troops: u32 },
+    UpdateState { room_id: Uuid },
+    StartGame { room_id: Uuid },
 }
 
 #[derive(Debug, Clone)]
@@ -57,7 +63,7 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 
 async fn handle_socket(socket: WebSocket, state: AppState) {
     println!("Client connected");
-    let this_user: Arc<Mutex<Option<Player>>> = Arc::new(Mutex::new(None));
+    let this_user: Arc<Mutex<Option<RoomPlayer>>> = Arc::new(Mutex::new(None));
     let this_other = this_user.clone();
     let (send, recv) = socket.split();
     // let arc_users = state.users.clone();
@@ -79,6 +85,9 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         _a = (&mut send_task) => recv_task.abort(),
         _b = (&mut recv_task) => send_task.abort(),
     }
-
-    println!("end of handle 187");
+}
+#[derive(Debug, Clone)]
+pub struct RoomPlayer {
+    pub room_id: Uuid,
+    pub player: Player,
 }

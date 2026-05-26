@@ -5,7 +5,7 @@ use gloo_timers::future::sleep;
 use macros::string;
 use structs::{CName, CStatus, Map, Point};
 use sycamore::{futures::spawn_local, prelude::*};
-use crate::{add_users::AddUsers, libs::{ConnectParams, connect}};
+use crate::{side_forms::{AddUsers, SelectRoom}, libs::{ConnectParams, connect}};
 const CSS: &str = "border-radius: 10px; border: 2px solid black; background-color: white; padding: 5px; font-size: 14px; font-weight: bold;";
 
 #[component]
@@ -18,6 +18,7 @@ pub fn App() -> View {
     let error = create_signal(None::<String>);
     let ws_sender: Signal<Option<UnboundedSender<Message>>> =
         create_signal(None::<UnboundedSender<Message>>);
+    let app_status = create_signal(AppStatus::Login);
     create_memo(move || {
         let err = error.with(|e|e.is_some());
         spawn_local(async move {
@@ -28,16 +29,20 @@ pub fn App() -> View {
             }
         });
     });
-    let connect_params = ConnectParams { map: map.clone(), users, status, ws_sender: ws_sender.clone() };
+    let connect_params = ConnectParams {map:map.clone(),users,status,ws_sender:ws_sender.clone(),error, app_status };
     spawn_local(connect(connect_params));
     // console_dbg!(&map);
-
+    let map2 = map.clone();
     view!{
         article(){
             img(src="./public/map.webp", alt="Mapa del juego",width="1200px", height="800px"){}
         }
         aside(id="side_forms"){
-            AddUsers(map=map, users=users, status=status, send = ws_sender, error = error)
+            (match app_status.get() {
+                AppStatus::Login => view!{SelectRoom(send = ws_sender, error = error)},
+                AppStatus::Lobby => {let map2 = map2.to_owned();view!{AddUsers(map=map2, users=users, status=status, send = ws_sender, error = error)}},
+                AppStatus::InGame => view!{},
+            })
             (status.get_clone().into_iter().map(|(_,c_status)|view!{
                 article(class="tokens"){
                         p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c_status.location.x, c_status.location.y)){(match &c_status.tokens{
@@ -67,7 +72,7 @@ pub fn App() -> View {
 }
 
 #[derive(Copy,Clone,PartialEq, Eq, Debug)]
-enum AppStatus {
+pub enum AppStatus {
     Login,
     Lobby,
     InGame,

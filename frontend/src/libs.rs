@@ -3,12 +3,14 @@ use std::{collections::HashMap, sync::{Arc, LazyLock}};
 use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use macros::string;
-use structs::{CStatus, Map, MessageDTO, Player};
+use structs::{CStatus, Map, MessageDTO, Player, ResponseDTO};
 use sycamore::{reactive::{ReadSignal, Signal}, web::{console_dbg, console_error, console_log}};
 use uuid::Uuid;
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{js_sys::Date, window};
+
+use crate::app::AppStatus;
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
 pub async fn send_message(
     send: ReadSignal<Option<UnboundedSender<Message>>>,
@@ -28,7 +30,7 @@ pub async fn send_message(
     }
 }
 
-pub async fn connect(ConnectParams { map, users, status, ws_sender } : ConnectParams) {
+pub async fn connect(ConnectParams { map, users, status, ws_sender, error, app_status } : ConnectParams) {
     console_log!("{}",HOST.as_str());
     let ws = match WebSocket::open(&HOST) {
         Ok(ws) => ws,
@@ -44,9 +46,9 @@ pub async fn connect(ConnectParams { map, users, status, ws_sender } : ConnectPa
     ws_sender.set(Some(tx));
     spawn_local(async move {
         while let Some(Ok(Message::Text(msg))) = read.next().await {
-            match serde_json::from_str::<MessageDTO>(&msg) {
+            match serde_json::from_str::<ResponseDTO>(&msg) {
                 Ok(msg) => match msg {
-                    MessageDTO::UpdateState { statuses } => for st in statuses {
+                    ResponseDTO::UpdateState { statuses } => for st in statuses {
                         let country_st = match status.get_clone().get(&st.country_id) {
                             Some(s) => s,
                             None => {
@@ -56,12 +58,18 @@ pub async fn connect(ConnectParams { map, users, status, ws_sender } : ConnectPa
                         
 
                     },
-                    MessageDTO::AddPlayer { player } => users.update(|users| {
-                            users.insert(player.id(), player.to_owned());
-                    }),
-                    MessageDTO::MakeMove { room_id, player_id, from, to, troops } => (),
-                    MessageDTO::StartGame { room_id } => (),
-                    MessageDTO::MissionCompleted { room_id } => (),
+                    ResponseDTO::UpdateRoom { room_id, players, statuses } => {
+                        users.set(players);
+                        status.set(statuses);
+                    }
+                    ResponseDTO::GameStarted => (),
+                    ResponseDTO::MissionCompleted { player } => (),
+                    ResponseDTO::Error { message } => error.set(Some(message)),
+                    ResponseDTO::LoggedIn { users: users_, status: status_ } => {
+                        users.set(users_);
+                        status.set(status_);
+                        app_status.set(AppStatus::Lobby);
+                    },
                 },
                 Err(e) => console_error!("Failed to parse message: {}", e),
             }
@@ -118,4 +126,6 @@ pub struct ConnectParams {
     pub users: Signal<HashMap<Uuid, Player>>,
     pub status: Signal<HashMap<Uuid, CStatus>>,
     pub ws_sender: Signal<Option<UnboundedSender<Message>>>,
+    pub error: Signal<Option<String>>,
+    pub app_status: Signal<AppStatus>,
 }

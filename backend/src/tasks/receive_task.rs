@@ -14,24 +14,34 @@ pub async fn receive_task(params: ReceiveParams) {
     while let Some(Ok(Message::Text(msg))) = recv.next().await {
         match serde_json::from_str::<MessageDTO>(msg.as_str()) {
             Ok(msg_dto) => match msg_dto {
-                MessageDTO::AddPlayer { player } => match player.role() {
-                    structs::PlayerRole::Master => {
-                        let new_room = Room { id: Uuid::new_v4(), master: Some(player.clone()), players: Arc::new(Mutex::new(HashMap::new())), countries: Map::get(), status: arc_mutex!((hashmap!{})), tx: broadcast::channel::<SenderMessage>(10).0 };
-                        let new_room_id = new_room.id;
-                        {
-                            state.rooms.lock().await.insert(new_room_id, new_room);
-                        }
-                        *this_user.lock().await = Some(RoomPlayer { room_id: new_room_id, player });
-                    },
-                    structs::PlayerRole::Player{ room} => {
-                        let room_found = state.rooms.lock().await.get(&room).cloned();
-                        if let Some(room) = room_found {
-                            room.players.lock().await.insert(player.id(), player.clone());
-                            *this_user.lock().await = Some(RoomPlayer { room_id: room.id, player });
-                        } else {
-                            println!("Room with id {} not found for player {}", room, player.name());
-                        }
-                    },
+                MessageDTO::AddPlayer { player } => {
+                    let room_send;
+                    match player.role() {
+                        structs::PlayerRole::Master => {
+                            let new_room = Room { id: Uuid::new_v4(), master: Some(player.clone()), players: Arc::new(Mutex::new(HashMap::new())), countries: Map::get(), status: arc_mutex!((hashmap!{})), tx: broadcast::channel::<SenderMessage>(10).0 };
+                            let new_room_id = new_room.id;
+                            {
+                                room_send = new_room.clone();
+                                state.rooms.lock().await.insert(new_room_id, new_room);
+                            }
+                            *this_user.lock().await = Some(RoomPlayer { room_id: new_room_id, player });
+                        },
+                        structs::PlayerRole::Player{ room} => {
+                            let room_found = state.rooms.lock().await.get(&room).cloned();
+                            if let Some(room) = room_found {
+                                room.players.lock().await.insert(player.id(), player.clone());
+                                *this_user.lock().await = Some(RoomPlayer { room_id: room.id, player });
+                                room_send = room;
+                            } else {
+                                println!("Room with id {} not found for player {}", room, player.name());
+                                continue;
+                            }
+                        },
+                    }
+                    if let Err(e)=state.rooms.lock().await.get(&room_send.id).unwrap().tx.send(SenderMessage::LoggedIn) {
+                        println!("Error broadcasting login: {e}");
+                        continue;
+                    }
                 },
                 MessageDTO::MakeMove { room_id ,player_id, from, to, troops } => {
                      if let Some(mut room) = state.rooms.lock().await.get(&room_id) {
@@ -56,7 +66,6 @@ pub async fn receive_task(params: ReceiveParams) {
                         }
                      }
                 },
-                MessageDTO::UpdateState { statuses } => (),
                 MessageDTO::StartGame { room_id } => (),
                 MessageDTO::MissionCompleted { room_id } => (),
             },

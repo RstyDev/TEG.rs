@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, stream::SplitSink};
-use structs::{MessageDTO, Player};
+use structs::{Player, ResponseDTO};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -12,17 +12,23 @@ pub async fn send_task(params: SendParams) {
     let SendParams { this_player, arc_rooms, mut send } = params;
     'outer: loop {
         let mut player_opt;
-        loop {
+        'inner: loop {
             player_opt = this_player.lock().await.clone();
-            if player_opt.is_some() {println!("Player is {:#?}",player_opt); break; }
+            if player_opt.is_some() {
+                println!("Player is {:#?}",player_opt); 
+                break 'inner; 
+            }
         }
          
 
         if let Some(player) = player_opt {
             let mut rooms_lock;
-            loop {
+            'inner: loop {
                 rooms_lock = arc_rooms.lock().await.get(&player.room_id).cloned();
-                if rooms_lock.is_some() { println!("Room is {:#?}", rooms_lock); break; }
+                if rooms_lock.is_some() { 
+                //    println!("Room is {:#?}", rooms_lock);
+                    break 'inner;
+                }
             }
             if let Some(room) = rooms_lock {
                 let mut rx = room.tx.subscribe();
@@ -44,9 +50,9 @@ pub async fn send_task(params: SendParams) {
                                 }
                                 if let Some(room) = room_lock {
                                     let updated_status = room.status.lock().await.clone().values().cloned().collect::<Vec<_>>();
-                                     if let Err(e) = send.send(Message::Text(serde_json::to_string(&MessageDTO::UpdateState { statuses: updated_status }).unwrap_or_default().into())).await {
+                                     if let Err(e) = send.send(Message::Text(serde_json::to_string(&ResponseDTO::UpdateState { statuses: updated_status }).unwrap_or_default().into())).await {
                                         println!("Error sending message: {e}");
-                                        break 'outer;
+                                        continue;
                                     }
                                 } else {
                                     println!("Room not found for player in move message");
@@ -57,12 +63,21 @@ pub async fn send_task(params: SendParams) {
                         },
                         crate::run::SenderMessage::UpdateState { room_id } => (),
                         crate::run::SenderMessage::StartGame { room_id } => (),
+                        crate::run::SenderMessage::LoggedIn => {
+                            if let Err(e) = send.send(serde_json::to_string(&ResponseDTO::LoggedIn {
+                                 users: room.players.lock().await.clone(), 
+                                 status: room.status.lock().await.clone() 
+                            }).expect("Error formatting").into()).await {
+                                println!("Error sending login message: {e}");
+                                continue;
+                            }
+                        },
                     }
                 }
 
             }
         }
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        //tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
 }
 

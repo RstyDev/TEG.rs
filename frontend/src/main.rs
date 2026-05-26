@@ -6,7 +6,7 @@ extern crate sycamore;
 extern crate web_sys;
 
 mod structs;
-mod add_users;
+mod side_forms;
 mod app;
 mod libs;
 use app::App;

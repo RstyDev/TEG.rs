@@ -9,7 +9,7 @@ use tokio::{
     sync::{Mutex, broadcast::Sender},
     task,
 };
-use structs::{CStatus, Country, Map, Player};
+use structs::{CStatus, Map, Player};
 use uuid::Uuid;
 
 use crate::tasks::{receive_task::{ReceiveParams, receive_task}, send_task::{SendParams, send_task}};
@@ -28,6 +28,7 @@ pub enum SenderMessage {
     Move { room_id: Uuid, player_id: Uuid, from: Uuid, to: Uuid, troops: u32 },
     UpdateState { room_id: Uuid },
     StartGame { room_id: Uuid },
+    LoggedIn,
 }
 
 #[derive(Debug, Clone)]
@@ -43,9 +44,11 @@ pub async fn run() -> std::io::Result<()> {
     };
     let app = Router::new().route("/ws", get(ws_handler)).with_state(state);
     let addr: SocketAddr = match env::var(string!("HOST")) {
-        Ok(e) => e
+        Ok(e) => {
+            e
             .parse()
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?
+        },
         Err(e) => panic!("{e}"),
     };
     let listener = TcpListener::bind(addr).await?;

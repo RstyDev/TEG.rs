@@ -573,7 +573,16 @@ pub struct Tokens {
 pub enum MessageDTO {
     AddPlayer { player: Player},
     MakeMove { room_id: Uuid, player_id: Uuid, from: Uuid, to: Uuid, troops: u32 },
-    UpdateState { statuses: Vec<CStatus> },
     StartGame { room_id: Uuid },
     MissionCompleted { room_id: Uuid },
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ResponseDTO {
+    UpdateState { statuses: Vec<CStatus> },
+    UpdateRoom { room_id: Uuid, players: HashMap<Uuid, Player>, statuses: HashMap<Uuid, CStatus> },
+    GameStarted,
+    LoggedIn { users: HashMap<Uuid, Player>,status: HashMap<Uuid,CStatus>},
+    MissionCompleted { player: Uuid},
+    Error { message: String },
 }

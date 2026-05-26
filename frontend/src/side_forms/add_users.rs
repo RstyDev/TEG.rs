@@ -68,6 +68,7 @@ pub fn AddUsers(map: Arc<Map>, users: Signal<HashMap<Uuid, Player>>,status: Sign
                         Action::CreateRoom => {
                             let size = user_name.with(|n| n.len());
                             if size == 0 {
+                                console_log!("User name is empty - Add Users");
                                 Err(string!("Debe ingresar el nombre"))
                             } else {
                                 let player = Player::new(user_name.get_clone(), PlayerRole::Master );

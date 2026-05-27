@@ -15,7 +15,7 @@ pub async fn send_task(params: SendParams) {
         'inner: loop {
             player_opt = this_player.lock().await.clone();
             if player_opt.is_some() {
-                println!("Player is {:#?}",player_opt); 
+                // println!("Player is {:#?}",player_opt); 
                 break 'inner; 
             }
         }
@@ -64,9 +64,11 @@ pub async fn send_task(params: SendParams) {
                         crate::run::SenderMessage::UpdateState { room_id } => (),
                         crate::run::SenderMessage::StartGame { room_id } => (),
                         crate::run::SenderMessage::LoggedIn => {
+                            println!("Player logged in, sending initial state");
                             if let Err(e) = send.send(serde_json::to_string(&ResponseDTO::LoggedIn {
-                                 users: room.players.lock().await.clone(), 
-                                 status: room.status.lock().await.clone() 
+                                 users: room.players.lock().await.to_owned(), 
+                                this_player: player.player.to_owned(),
+                                room: player.room_id, 
                             }).expect("Error formatting").into()).await {
                                 println!("Error sending login message: {e}");
                                 continue;

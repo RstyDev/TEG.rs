@@ -18,30 +18,32 @@ pub async fn receive_task(params: ReceiveParams) {
                     let room_send;
                     match player.role() {
                         structs::PlayerRole::Master => {
-                            let new_room = Room { id: Uuid::new_v4(), master: Some(player.clone()), players: Arc::new(Mutex::new(HashMap::new())), countries: Map::get(), status: arc_mutex!((hashmap!{})), tx: broadcast::channel::<SenderMessage>(10).0 };
-                            let new_room_id = new_room.id;
                             {
-                                room_send = new_room.clone();
-                                state.rooms.lock().await.insert(new_room_id, new_room);
+                                let new_room = Room { id: Uuid::new_v4(), master: Some(player.clone()), players: Arc::new(Mutex::new(HashMap::new())), countries: Map::get(), status: arc_mutex!((hashmap!{})), tx: broadcast::channel::<SenderMessage>(10).0 };
+                                room_send = new_room.id;
+                                state.rooms.lock().await.insert(room_send, new_room);
                             }
-                            *this_user.lock().await = Some(RoomPlayer { room_id: new_room_id, player });
+                            println!("Room Created: {:#?}", state.rooms.lock().await);
+                            *this_user.lock().await = Some(RoomPlayer { room_id: room_send, player });
                         },
                         structs::PlayerRole::Player{ room} => {
-                            let room_found = state.rooms.lock().await.get(&room).cloned();
+                            let mut rooms_lock = state.rooms.lock().await;
+                            let room_found = rooms_lock.get(&room).cloned();
                             if let Some(room) = room_found {
                                 room.players.lock().await.insert(player.id(), player.clone());
                                 *this_user.lock().await = Some(RoomPlayer { room_id: room.id, player });
-                                room_send = room;
+                                room_send = room.id;
+                                rooms_lock.insert(room.id, room);
                             } else {
                                 println!("Room with id {} not found for player {}", room, player.name());
                                 continue;
                             }
                         },
                     }
-                    if let Err(e)=state.rooms.lock().await.get(&room_send.id).unwrap().tx.send(SenderMessage::LoggedIn) {
-                        println!("Error broadcasting login: {e}");
-                        continue;
+                    loop {
+                        if state.rooms.lock().await.get(&room_send).unwrap().tx.send(SenderMessage::LoggedIn).is_ok() {break;}
                     }
+                    
                 },
                 MessageDTO::MakeMove { room_id ,player_id, from, to, troops } => {
                      if let Some(mut room) = state.rooms.lock().await.get(&room_id) {

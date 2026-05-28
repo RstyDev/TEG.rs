@@ -483,7 +483,7 @@ pub struct Player {
     role: PlayerRole
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Copy)]
 pub enum PlayerRole {
     Master,
     Player{ room: Uuid },
@@ -516,8 +516,8 @@ impl Player {
         &self.countries
     }
 
-    pub fn role(&self) -> &PlayerRole {
-        &self.role
+    pub fn role(&self) -> PlayerRole {
+        self.role
     }
 
     pub fn set_mission(&mut self, mission: String) {
@@ -579,10 +579,16 @@ pub enum MessageDTO {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ResponseDTO {
+    CompleteUpdate { room: RoomMaster, players: HashMap<Uuid,Player>, status: HashMap<Uuid,CStatus>},
     UpdateState { statuses: Vec<CStatus> },
     UpdateRoom { room_id: Uuid, players: HashMap<Uuid, Player>, statuses: HashMap<Uuid, CStatus> },
     GameStarted,
-    LoggedIn { users: HashMap<Uuid, Player>,status: HashMap<Uuid,CStatus>},
+    LoggedIn { this_player: Player, room: RoomMaster, users: HashMap<Uuid, Player>},
     MissionCompleted { player: Uuid},
     Error { message: String },
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct RoomMaster {
+    pub room_id: Uuid,
+    pub master: Player,
 }

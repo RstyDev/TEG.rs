@@ -23,7 +23,7 @@ pub async fn receive_task(params: ReceiveParams) {
                                 room_send = new_room.id;
                                 state.rooms.lock().await.insert(room_send, new_room);
                             }
-                            println!("Room Created: {:#?}", state.rooms.lock().await);
+                            // println!("Room Created: {:#?}", state.rooms.lock().await);
                             *this_user.lock().await = Some(RoomPlayer { room_id: room_send, player });
                         },
                         structs::PlayerRole::Player{ room} => {
@@ -57,7 +57,7 @@ pub async fn receive_task(params: ReceiveParams) {
                                 }else {
                                     println!("Player {} is not the owner of the attacking country {}", player_id, from);
                                 }
-                                if let Err(e) = room.tx.send(SenderMessage::Move { room_id, player_id, from, to, troops }) {
+                                if let Err(e) = room.tx.send(SenderMessage::Move) {
                                     println!("Error broadcasting move: {e}");
                                     break;
                                 }

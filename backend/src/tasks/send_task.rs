@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, stream::SplitSink};
-use structs::{Player, ResponseDTO};
+use structs::{Player, ResponseDTO, RoomMaster};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -35,10 +35,14 @@ pub async fn send_task(params: SendParams) {
                 let users = room.players.lock().await.values().cloned().collect::<Vec<_>>();
 
                 //TODO ver si se necesita enviar el estado completo o solo el cambio
+                if let Err(e) = send.send(Message::Text(serde_json::to_string(&ResponseDTO::CompleteUpdate { room: RoomMaster { room_id: room.id, master: room.master.clone().unwrap() }, players: room.players.lock().await.to_owned(), status: room.status.lock().await.to_owned() }).unwrap().into())).await {
+                    println!("Error sending message: {e}");
+                }
+
 
                 while let Ok(msg) = rx.recv().await {
                     match msg {
-                        crate::run::SenderMessage::Move { room_id, player_id, from, to, troops } => {
+                        crate::run::SenderMessage::Move => {
                             let player_lock;
                             {
                                 player_lock = this_player.lock().await.clone();
@@ -61,14 +65,14 @@ pub async fn send_task(params: SendParams) {
                                 println!("Player not found for move message");
                             }
                         },
-                        crate::run::SenderMessage::UpdateState { room_id } => (),
-                        crate::run::SenderMessage::StartGame { room_id } => (),
+                        crate::run::SenderMessage::UpdateState => (),
+                        crate::run::SenderMessage::StartGame => (),
                         crate::run::SenderMessage::LoggedIn => {
-                            println!("Player logged in, sending initial state");
+                            // println!("Player logged in, sending initial state");
                             if let Err(e) = send.send(serde_json::to_string(&ResponseDTO::LoggedIn {
                                  users: room.players.lock().await.to_owned(), 
                                 this_player: player.player.to_owned(),
-                                room: player.room_id, 
+                                room: RoomMaster { room_id: player.room_id, master: room.master.clone().unwrap().to_owned() }, 
                             }).expect("Error formatting").into()).await {
                                 println!("Error sending login message: {e}");
                                 continue;

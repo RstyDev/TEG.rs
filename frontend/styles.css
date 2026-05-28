@@ -88,6 +88,15 @@ button.selected {
     color: #e53a3a;
     font-size: 1.3em;
 }
+.warning {
+    color: #00F;
+    font-size: 1.3em;
+}
+.info {
+    color: #0b0;
+    font-size: 1.3em;
+}
+
 button:hover {
   background: linear-gradient(to bottom, #d8b982, #9c7348);
 }

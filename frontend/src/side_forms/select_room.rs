@@ -8,16 +8,16 @@ use macros::string;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{MouseEvent, SubmitEvent};
-use crate::libs::send_message;
+use crate::{libs::send_message, structs::Notification};
 
 #[component(inline_props)]
-pub fn SelectRoom(send: Signal<Option<UnboundedSender<Message>>>, error: Signal<Option<String>>) -> View {
+pub fn SelectRoom(send: Signal<Option<UnboundedSender<Message>>>, notification: Signal<Notification>) -> View {
     let action = create_signal(Action::CreateRoom);
     let user_name = create_signal(string!());
     let room_code = create_signal(string!());
-    create_effect(move || {
-        console_log!("user: name: {}",user_name.get_clone());
-    });
+    // create_effect(move || {
+    //     console_log!("user: name: {}",user_name.get_clone());
+    // });
     view!{
         button(class=match action.get(){
             Action::CreateRoom => "selected",
@@ -67,7 +67,7 @@ pub fn SelectRoom(send: Signal<Option<UnboundedSender<Message>>>, error: Signal<
                         
                     },
                 } {
-                    error.set(Some(format!("Error: {e}")));
+                    notification.set(Notification::Error(format!("Error: {e}")));
                 }
             });
             // users.update(|users| {

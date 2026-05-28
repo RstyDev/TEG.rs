@@ -25,9 +25,9 @@ pub struct Room {
 }
 #[derive(Clone,Debug, Copy)]
 pub enum SenderMessage {
-    Move { room_id: Uuid, player_id: Uuid, from: Uuid, to: Uuid, troops: u32 },
-    UpdateState { room_id: Uuid },
-    StartGame { room_id: Uuid },
+    Move,
+    UpdateState,
+    StartGame,
     LoggedIn,
 }
 

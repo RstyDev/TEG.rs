@@ -3,14 +3,14 @@ use std::{collections::HashMap, sync::{Arc, LazyLock}};
 use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use macros::string;
-use structs::{CStatus, Map, MessageDTO, Player, ResponseDTO};
+use structs::{CStatus, Map, MessageDTO, Player, ResponseDTO, RoomMaster};
 use sycamore::{reactive::{ReadSignal, Signal}, web::{console_dbg, console_error, console_log}};
 use uuid::Uuid;
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
-use wasm_bindgen_futures::spawn_local;
-use web_sys::{js_sys::Date, window};
+use wasm_bindgen_futures::{JsFuture, spawn_local};
+use web_sys::{Clipboard, js_sys::Date, window};
 
-use crate::app::AppStatus;
+use crate::{app::get_point, structs::{AppStatus, Notification}};
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
 pub async fn send_message(
     send: ReadSignal<Option<UnboundedSender<Message>>>,
@@ -30,8 +30,9 @@ pub async fn send_message(
     }
 }
 
-pub async fn connect(ConnectParams { map, users, status, ws_sender, error, app_status } : ConnectParams) {
+pub async fn connect(ConnectParams { map, users, status, ws_sender, notification, app_status, this_player, room_master } : ConnectParams) {
     console_log!("{}",HOST.as_str());
+    
     let ws = match WebSocket::open(&HOST) {
         Ok(ws) => ws,
         Err(e) => {
@@ -64,11 +65,26 @@ pub async fn connect(ConnectParams { map, users, status, ws_sender, error, app_s
                     }
                     ResponseDTO::GameStarted => (),
                     ResponseDTO::MissionCompleted { player } => (),
-                    ResponseDTO::Error { message } => error.set(Some(message)),
-                    ResponseDTO::LoggedIn { users: users_, status: status_ } => {
+                    ResponseDTO::Error { message } => notification.set(Notification::Error(message)),
+                    ResponseDTO::LoggedIn { users: users_, this_player: this_player_, room } => {
+                        console_log!("Logged in: users: {:#?}, this_player: {:#?}, room: {:#?}", users_, this_player_, room);
                         users.set(users_);
-                        status.set(status_);
-                        app_status.set(AppStatus::Lobby);
+                        // status.set(status_.iter().map(|(id, st)|{
+                        //     let mut status = st.clone();
+                        //     status.location = get_point(map.0.get(id).unwrap().name());
+                        //     status.tokens = None;
+                        //     (*id, status)
+                        // }).collect::<HashMap<_,_>>());
+                        this_player.set(Some(this_player_));
+                        room_master.set(Some(room));
+                        // app_status.set_fn(|st|st.next());
+                    },
+                    ResponseDTO::CompleteUpdate { room, players, status: status_ } => {
+                        console_log!("Complete Update received: master: {:#?}, players: {:#?}, status: {:#?}", room, players, status_);
+                        room_master.set(Some(room));
+                        users.set(players);
+                        // status.set(status_);
+                        app_status.set_fn(|st|st.next());
                     },
                 },
                 Err(e) => console_error!("Failed to parse message: {}", e),
@@ -121,11 +137,21 @@ pub fn save_token(token: String) -> Result<(), JsValue> {
     Ok(())
 }
 
+pub async fn copy_to_clipboard(text: &str) -> Result<(), JsValue> {
+    let nav = window().ok_or("no window")?.navigator();
+    // La API Clipboard puede no estar disponible en contextos inseguros
+    let clipboard: Clipboard = nav.clipboard();
+    JsFuture::from(clipboard.write_text(text)).await?;
+    Ok(())
+}
+
 pub struct ConnectParams {
     pub map: Arc<Map>,
     pub users: Signal<HashMap<Uuid, Player>>,
     pub status: Signal<HashMap<Uuid, CStatus>>,
     pub ws_sender: Signal<Option<UnboundedSender<Message>>>,
-    pub error: Signal<Option<String>>,
+    pub notification: Signal<Notification>,
     pub app_status: Signal<AppStatus>,
+    pub this_player: Signal<Option<Player>>,
+    pub room_master: Signal<Option<RoomMaster>>,
 }

@@ -3,9 +3,10 @@ use futures::channel::mpsc::UnboundedSender;
 use gloo_net::websocket::Message;
 use gloo_timers::future::sleep;
 use macros::string;
-use structs::{CName, CStatus, Map, Point};
+use structs::{CName, CStatus, Map, Player, Point, RoomMaster};
 use sycamore::{futures::spawn_local, prelude::*};
-use crate::{side_forms::{AddUsers, SelectRoom}, libs::{ConnectParams, connect}};
+
+use crate::{libs::{ConnectParams, connect}, side_forms::{InGame, Lobby, SelectRoom}, structs::{AppStatus, Notification}};
 const CSS: &str = "border-radius: 10px; border: 2px solid black; background-color: white; padding: 5px; font-size: 14px; font-weight: bold;";
 
 #[component]
@@ -15,21 +16,30 @@ pub fn App() -> View {
     let status = create_signal(map.0.clone().into_iter().map(|(country_id,c)|{
         (country_id,CStatus { country_id, location: get_point(c.name()), tokens: None })
     }).collect::<HashMap<_,_>>());
-    let error = create_signal(None::<String>);
+    let notification = create_signal(Notification::None);
     let ws_sender: Signal<Option<UnboundedSender<Message>>> =
         create_signal(None::<UnboundedSender<Message>>);
     let app_status = create_signal(AppStatus::Login);
+    let this_player = create_signal(None::<Player>);
+    let room_master = create_signal(None::<RoomMaster>);
     create_memo(move || {
-        let err = error.with(|e|e.is_some());
+        console_dbg!(&status);
+    });
+    create_memo(move || {
+        let err = notification.with(|e|e != &Notification::None);
         spawn_local(async move {
             if err {
                 sleep(Duration::from_millis(2000)).await;
-                error.set(None);
+                notification.set(Notification::None);
                 // console_dbg!("Copied to false now");
             }
         });
     });
-    let connect_params = ConnectParams {map:map.clone(),users,status,ws_sender:ws_sender.clone(),error, app_status };
+    create_memo(move || {
+        console_log!("{:#?}", this_player.get_clone());
+        console_log!("{:#?}", room_master.get_clone());
+    });
+    let connect_params = ConnectParams {map:map.clone(),users,status,ws_sender:ws_sender.clone(),notification, app_status, this_player: this_player.clone(), room_master: room_master.clone() };
     spawn_local(connect(connect_params));
     // console_dbg!(&map);
     let map2 = map.clone();
@@ -39,9 +49,9 @@ pub fn App() -> View {
         }
         aside(id="side_forms"){
             (match app_status.get() {
-                AppStatus::Login => view!{SelectRoom(send = ws_sender, error = error)},
-                AppStatus::Lobby => {let map2 = map2.to_owned();view!{AddUsers(map=map2, users=users, status=status, send = ws_sender, error = error)}},
-                AppStatus::InGame => view!{},
+                AppStatus::Login => view!{SelectRoom(send = ws_sender, notification = notification)},
+                AppStatus::Lobby => {let map2 = map2.to_owned();view!{Lobby(map=map2, users=users, status=status, send = ws_sender, notification = notification, room=room_master, app_status=app_status, this_player = this_player)}},
+                AppStatus::InGame => view!{InGame()},
             })
             (status.get_clone().into_iter().map(|(_,c_status)|view!{
                 article(class="tokens"){
@@ -63,20 +73,17 @@ pub fn App() -> View {
             //     },
             //     key=|c_status| c_status.id
             // )
-            (match error.get_clone(){
-                Some(er) => view!{p(class="error"){(er)}},
-                None => view!{},
+            (match notification.get_clone(){
+                Notification::Error(er) => view!{p(class="notification error"){(er)}},
+                Notification::Warning(warn) => view!{p(class="notification warning"){(warn)}},
+                Notification::Info(info) => view!{p(class="notification info"){(info)}},
+                Notification::None => view!{},
             })
         }
     }
 }
 
-#[derive(Copy,Clone,PartialEq, Eq, Debug)]
-pub enum AppStatus {
-    Login,
-    Lobby,
-    InGame,
-}
+
 
 
 pub fn get_point(name: CName) -> Point {

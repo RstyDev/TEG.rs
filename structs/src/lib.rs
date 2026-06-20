@@ -4,7 +4,6 @@ use uuid::Uuid;
 use macros::hashmap;
 #[derive(Debug, Clone)]
 pub struct Map(pub HashMap<Uuid, Country>);
-
 impl Map {
     pub fn get() -> Self {
         let mut arg = Country::new(None, Continent::SouthAmerica, CName::Argentina);
@@ -342,35 +341,29 @@ impl Map {
         Self(res)
     }
 }
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Move {
     player_id: u32,
     move_type: MoveType,
 }
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MoveType {
     Attack { from: Country, to: Country, troops: u32 },
     Fortify { from: Country, to: Country, troops: u32 },
     Pass,
 }
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MoveResult {
     success: bool,
     attacker: MoveResultCount,
     defender: MoveResultCount,
 }
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MoveResultCount {
     Win(u32),
     Lose(u32),
     Draw,
 }
-
-
 #[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct Country {
     pub id: Uuid,
@@ -378,7 +371,6 @@ pub struct Country {
     name: CName,
     adjacents: Vec<Uuid>
 }
-
 impl Country {
     pub fn new(id: Option<Uuid>, continent: Continent, name: CName) -> Self {
         Country {
@@ -409,7 +401,6 @@ impl Country {
         &self.adjacents
     }
 }
-
 #[derive(Debug, Serialize, Deserialize,Clone)]
 pub enum Continent {
     NorthAmerica,
@@ -419,7 +410,6 @@ pub enum Continent {
     Africa,
     Oceania,
 }
-
 #[derive(Clone, Debug, PartialEq, Copy, Serialize, Deserialize)]
 pub enum CName {
     Canadá,
@@ -473,22 +463,76 @@ pub enum CName {
     Java,
     Australia,
 }
-
+impl CName {
+    pub fn get_point(&self) -> Point {
+        match self {
+            CName::Canadá => Point{ x: 200, y: 150 },
+            CName::Yukón => Point{ x: 120, y: 210 },
+            CName::Alaska => Point{ x: 35, y: 290 },
+            CName::Groenlandia => Point{ x: 425, y: 150 },
+            CName::Oregón => Point{ x: 95, y: 350 },
+            CName::California => Point{ x: 165, y: 385 },
+            CName::México => Point{ x: 300, y: 415 },
+            CName::NuevaYork => Point{ x: 215, y: 255 },
+            CName::Terranova => Point{ x: 260, y: 240 },
+            CName::Labrador => Point{ x: 320, y: 210 },
+            CName::Argentina => Point{ x: 410, y: 545 },
+            CName::Brasil => Point{ x: 450, y: 460 },
+            CName::Perú => Point{ x: 360, y: 495 },
+            CName::Colombia => Point{ x: 370, y: 430 },
+            CName::Chile => Point{ x: 370, y: 600 },
+            CName::Uruguay => Point{ x: 460, y: 540 },
+            CName::GranBretaña => Point{ x: 660, y: 290 },
+            CName::Islandia => Point{ x: 520, y: 280 },
+            CName::España => Point{ x: 620, y: 420 },
+            CName::Francia => Point{ x: 710, y: 360 }, 
+            CName::Alemania => Point{ x: 770, y: 340 },
+            CName::Italia => Point{ x: 760, y: 420 },
+            CName::Polonia => Point{ x: 820, y: 330 },
+            CName::Rusia => Point{ x: 815, y: 220 },
+            CName::Suecia => Point{ x: 710, y: 200 },
+            CName::Sahara => Point{ x: 720, y: 515 },
+            CName::Etiopía => Point{ x: 805, y: 540 },
+            CName::Egipto => Point{ x: 905, y: 530 },
+            CName::Madagascar => Point{ x: 930, y: 600 },
+            CName::Zaire => Point{ x: 755, y: 590 },
+            CName::Sudáfrica => Point{ x: 860, y: 640 },
+            CName::Arabia => Point{ x: 965, y: 465 },
+            CName::Aral => Point{ x: 870, y: 170 },
+            CName::China => Point{ x: 1050, y: 260 },
+            CName::India => Point{ x: 1040, y: 390 },
+            CName::Irán => Point{ x: 915, y: 280 },
+            CName::Tartaria => Point{ x: 900, y: 135 },
+            CName::Taymyr => Point{ x: 955, y: 135 },
+            CName::Japón => Point{ x: 1150, y: 230 },
+            CName::Kamchatka => Point{ x: 1030, y: 130 },
+            CName::Siberia => Point{ x: 930, y: 205 },
+            CName::Mongolia => Point{ x: 950, y: 240 },
+            CName::Gobi => Point{ x: 1015, y: 275 },
+            CName::Malasia => Point{ x: 1130, y: 390 },
+            CName::Turquía => Point{ x: 875, y: 390 },
+            CName::Israel => Point{ x: 875, y: 430 },
+            CName::Sumatra => Point{ x: 990, y: 515 },
+            CName::Borneo => Point{ x: 1080, y: 460 },
+            CName::Java => Point{ x: 1135, y: 445 },
+            CName::Australia => Point{ x: 1130, y: 545 },
+        }
+    }
+}
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     id: Uuid,
     name: String,
     mission: String,
     countries: Vec<Uuid>,
-    role: PlayerRole
+    role: PlayerRole,
+    adding_troops: u8,
 }
-
-#[derive(Clone, PartialEq, Serialize, Deserialize, Copy)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Copy, Debug)]
 pub enum PlayerRole {
     Master,
     Player{ room: Uuid },
 }
-
 impl Player {
     pub fn new(name: String, role: PlayerRole) -> Self {
         Self {
@@ -497,6 +541,7 @@ impl Player {
             mission: String::new(),
             countries: Vec::new(),
             role,
+            adding_troops: 0,
         }
     }
 
@@ -527,19 +572,26 @@ impl Player {
     pub fn set_countries(&mut self, countries: Vec<Uuid>) {
         self.countries = countries;
     }
-}
 
+    pub fn available_troops(&self) -> u8 {
+        self.adding_troops
+    }
+
+    pub fn grant_troops(&mut self, troop_count: u8) {
+        self.adding_troops += troop_count;
+    }
+}
 impl Debug for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Player")
             .field("id", &self.id)
             .field("name", &self.name)
+            .field("role", &self.role)
             .field("countries", &self.countries)
             // .field("mission", &self.mission)
             .finish()
     }
 }
-
 #[derive(Clone,Debug, Serialize, Deserialize)]
 pub struct CStatus {
     pub country_id: Uuid,
@@ -551,8 +603,6 @@ impl PartialEq for CStatus {
         self.country_id == other.country_id && self.location == other.location && self.tokens == other.tokens
     }
 }
-
-
 #[derive(Clone,Debug, PartialEq, Serialize, Deserialize)]
 pub struct Point {
     pub x: u32,
@@ -563,12 +613,6 @@ pub struct Tokens {
     pub owner: Uuid,
     pub amount: u8,
 }
-
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct MessageDTO {
-//     pub message_type: MessageType,
-// }
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum MessageDTO {
     AddPlayer { player: Player},
@@ -576,13 +620,12 @@ pub enum MessageDTO {
     StartGame { room_id: Uuid },
     MissionCompleted { room_id: Uuid },
 }
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ResponseDTO {
-    CompleteUpdate { room: RoomMaster, players: HashMap<Uuid,Player>, status: HashMap<Uuid,CStatus>},
+    CompleteUpdate { room: RoomMaster, this_player: Uuid, players: HashMap<Uuid,Player>, status: HashMap<Uuid,CStatus>},
     UpdateState { statuses: Vec<CStatus> },
     UpdateRoom { room_id: Uuid, players: HashMap<Uuid, Player>, statuses: HashMap<Uuid, CStatus> },
-    GameStarted,
+    GameStarted { room: RoomMaster, players: HashMap<Uuid,Player>, status: HashMap<Uuid,CStatus>},
     LoggedIn { this_player: Player, room: RoomMaster, users: HashMap<Uuid, Player>},
     MissionCompleted { player: Uuid},
     Error { message: String },
@@ -590,5 +633,5 @@ pub enum ResponseDTO {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct RoomMaster {
     pub room_id: Uuid,
-    pub master: Player,
+    pub master: Uuid,
 }

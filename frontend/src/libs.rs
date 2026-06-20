@@ -48,7 +48,7 @@ pub async fn connect(ConnectParams { map, users, status, ws_sender, notification
     spawn_local(async move {
         while let Some(Ok(Message::Text(msg))) = read.next().await {
             match serde_json::from_str::<ResponseDTO>(&msg) {
-                Ok(msg) => match msg {
+                Ok(msg_dto) => match msg_dto {
                     ResponseDTO::UpdateState { statuses } => for st in statuses {
                         let country_st = match status.get_clone().get(&st.country_id) {
                             Some(s) => s,
@@ -63,11 +63,16 @@ pub async fn connect(ConnectParams { map, users, status, ws_sender, notification
                         users.set(players);
                         status.set(statuses);
                     }
-                    ResponseDTO::GameStarted => (),
+                    ResponseDTO::GameStarted { room, players, status: status_ } => {
+                        users.set(players);
+                        status.set(status_);
+                        app_status.set(AppStatus::InGame);
+                    },
                     ResponseDTO::MissionCompleted { player } => (),
                     ResponseDTO::Error { message } => notification.set(Notification::Error(message)),
                     ResponseDTO::LoggedIn { users: users_, this_player: this_player_, room } => {
                         console_log!("Logged in: users: {:#?}, this_player: {:#?}, room: {:#?}", users_, this_player_, room);
+                        // console_dbg!(&msg);
                         users.set(users_);
                         // status.set(status_.iter().map(|(id, st)|{
                         //     let mut status = st.clone();
@@ -79,10 +84,13 @@ pub async fn connect(ConnectParams { map, users, status, ws_sender, notification
                         room_master.set(Some(room));
                         // app_status.set_fn(|st|st.next());
                     },
-                    ResponseDTO::CompleteUpdate { room, players, status: status_ } => {
+                    ResponseDTO::CompleteUpdate { room, players, status: status_, this_player: this_player_ } => {
                         console_log!("Complete Update received: master: {:#?}, players: {:#?}, status: {:#?}", room, players, status_);
+                        // console_dbg!(&msg);
+                        this_player.set_silent(players.get(&this_player_).cloned());
                         room_master.set(Some(room));
                         users.set(players);
+
                         // status.set(status_);
                         app_status.set_fn(|st|st.next());
                     },

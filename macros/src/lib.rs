@@ -72,7 +72,7 @@ pub fn hashmap(input: TokenStream) -> TokenStream {
                     TokenTree::Literal(lit) if i % 3 == 2 => {
                         value = TokenTree::Literal(lit);
                     }
-                    _ => panic!("Unexpected token in hashmap macro"),
+                    value => panic!("Unexpected token in hashmap macro {:#?}",value),
                 }
             }
 

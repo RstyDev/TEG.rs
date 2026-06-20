@@ -19,7 +19,7 @@ pub async fn send_task(params: SendParams) {
                 break 'inner; 
             }
         }
-         
+        //  println!("Player found");
 
         if let Some(player) = player_opt {
             let mut rooms_lock;
@@ -30,17 +30,23 @@ pub async fn send_task(params: SendParams) {
                     break 'inner;
                 }
             }
+            // println!("Room found");
             if let Some(room) = rooms_lock {
                 let mut rx = room.tx.subscribe();
-                let users = room.players.lock().await.values().cloned().collect::<Vec<_>>();
+                let users;
+                {
+                    users = room.players.lock().await.clone();
+                }
+                // println!("Suscribed");
 
                 //TODO ver si se necesita enviar el estado completo o solo el cambio
-                if let Err(e) = send.send(Message::Text(serde_json::to_string(&ResponseDTO::CompleteUpdate { room: RoomMaster { room_id: room.id, master: room.master.clone().unwrap() }, players: room.players.lock().await.to_owned(), status: room.status.lock().await.to_owned() }).unwrap().into())).await {
+                if let Err(e) = send.send(Message::Text(serde_json::to_string(&ResponseDTO::CompleteUpdate { room: RoomMaster { room_id: room.id, master: room.master.clone().unwrap() }, players: users.to_owned(), status: room.status.lock().await.to_owned(), this_player: player.player.id() }).unwrap().into())).await {
                     println!("Error sending message: {e}");
                 }
 
-
+                // println!("Listening");
                 while let Ok(msg) = rx.recv().await {
+                    // println!("Message received");
                     match msg {
                         crate::run::SenderMessage::Move => {
                             let player_lock;
@@ -65,17 +71,53 @@ pub async fn send_task(params: SendParams) {
                                 println!("Player not found for move message");
                             }
                         },
-                        crate::run::SenderMessage::UpdateState => (),
-                        crate::run::SenderMessage::StartGame => (),
+                        crate::run::SenderMessage::UpdateState => {
+                            let player_lock;
+                            {
+                                player_lock = this_player.lock().await.clone();
+                            }
+                            if let Some(player) = player_lock {
+                                let room_lock;
+                                {
+                                    room_lock = arc_rooms.lock().await.get(&player.room_id).cloned();
+                                }
+                                if let Some(room) = room_lock {
+                                    let updated_status = room.status.lock().await.clone().values().cloned().collect::<Vec<_>>();
+                                     if let Err(e) = send.send(Message::Text(serde_json::to_string(&ResponseDTO::GameStarted { room: RoomMaster { room_id: player.room_id, master: player.player.id() }, players: room.players.lock().await.to_owned(), status: room.status.lock().await.to_owned() }).unwrap_or_default().into())).await {
+                                        println!("Error sending message: {e}");
+                                        continue;
+                                    }
+                                } else {
+                                    println!("Room not found for player in move message");
+                                }
+                            } else {
+                                println!("Player not found for move message");
+                            }
+                        },
+                        crate::run::SenderMessage::StartGame => {
+                            let players = room.players.lock().await.to_owned();
+                            let status = room.status.lock().await.to_owned();
+                            let master = players.get(room.master.as_ref().unwrap()).unwrap().id();
+                            if let Err(e) = send.send(serde_json::to_string(&ResponseDTO::GameStarted { room: RoomMaster { room_id: room.id, master }, players, status }).expect("Formatting err").into()).await{
+                                println!("Error starting game: {}",e)
+                            } else {
+                                println!("Game started message sent")
+                            }
+                        },
                         crate::run::SenderMessage::LoggedIn => {
-                            // println!("Player logged in, sending initial state");
+                            let this_player = this_player.lock().await.as_ref().unwrap().player.clone();
+                            println!("Player logged in as {:#?}, sending initial state",this_player);
+                            let users = room.players.lock().await;
+                            let master = users.get(room.master.as_ref().unwrap()).cloned().unwrap();
                             if let Err(e) = send.send(serde_json::to_string(&ResponseDTO::LoggedIn {
-                                 users: room.players.lock().await.to_owned(), 
-                                this_player: player.player.to_owned(),
-                                room: RoomMaster { room_id: player.room_id, master: room.master.clone().unwrap().to_owned() }, 
+                                users: users.to_owned(), 
+                                this_player,
+                                room: RoomMaster { room_id: room.id, master: master.id() }, 
                             }).expect("Error formatting").into()).await {
                                 println!("Error sending login message: {e}");
                                 continue;
+                            } else {
+                                println!("Message sent - 107")
                             }
                         },
                     }

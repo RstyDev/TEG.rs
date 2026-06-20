@@ -48,6 +48,7 @@ pub fn SelectRoom(send: Signal<Option<UnboundedSender<Message>>>, notification: 
                             Err(string!("Debe ingresar el nombre"))
                         } else {
                             let player = Player::new(user_name.get_clone(), PlayerRole::Master );
+                            console_log!("Logging in as {:#?}",player.role());
                             send_message(*send, MessageDTO::AddPlayer { player }).await
                         }
                     },

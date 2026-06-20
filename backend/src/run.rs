@@ -17,7 +17,7 @@ use crate::tasks::{receive_task::{ReceiveParams, receive_task}, send_task::{Send
 #[derive(Debug,Clone)]
 pub struct Room {
     pub id: Uuid,
-    pub master: Option<Player>,
+    pub master: Option<Uuid>,
     pub players: Arc<Mutex<HashMap<Uuid,Player>>>,
     pub countries: Map,
     pub status: Arc<Mutex<HashMap<Uuid,CStatus>>>,

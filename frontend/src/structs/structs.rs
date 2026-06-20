@@ -27,3 +27,10 @@ impl AppStatus {
         }
     }
 }
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum GameStage {
+    AddingTroops { player_id: Uuid },
+    Moving { player_id: Uuid },
+    Won { player_id: Uuid }
+}

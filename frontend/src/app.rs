@@ -23,7 +23,8 @@ pub fn App() -> View {
     let this_player = create_signal(None::<Player>);
     let room_master = create_signal(None::<RoomMaster>);
     create_memo(move || {
-        console_dbg!(&status);
+        // console_dbg!(&status);
+        console_dbg!(&users);
     });
     create_memo(move || {
         let err = notification.with(|e|e != &Notification::None);

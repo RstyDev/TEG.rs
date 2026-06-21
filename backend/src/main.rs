@@ -1,4 +1,4 @@
-use structs::Map;
+mod structs;
 mod tasks;
 mod run;
 

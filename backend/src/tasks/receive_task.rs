@@ -4,11 +4,11 @@ use axum::extract::ws::{Message, WebSocket};
 use futures_util::{StreamExt, stream::SplitStream};
 use macros::{arc_mutex, hashmap};
 use rand::{RngExt, rngs::{StdRng, SysRng}, SeedableRng};
-use structs::{CStatus, Map, MessageDTO, Player, Tokens};
+use structs::{CStatus, MessageDTO, Tokens, MAP};
 use tokio::sync::{Mutex, broadcast};
-use uuid::{Uuid, serde::braced};
+use uuid::Uuid;
 
-use crate::run::{AppState, Room, RoomPlayer, SenderMessage};
+use crate::{run::{AppState, Room, RoomPlayer, SenderMessage}, structs::Mission};
 
 pub async fn receive_task(params: ReceiveParams) {
     let ReceiveParams { mut recv, state, this_user } = params;
@@ -24,7 +24,7 @@ pub async fn receive_task(params: ReceiveParams) {
                                 let pl_id = player.id();
                                 let pl = player.clone();
                                 let value = hashmap!({pl_id:pl});
-                                let new_room = Room { id: Uuid::new_v4(), master: Some(pl_id), players: Arc::new(Mutex::new(value)), countries: Map::get(), status: arc_mutex!((hashmap!{})), tx: broadcast::channel::<SenderMessage>(10).0 };
+                                let new_room = Room { id: Uuid::new_v4(), master: Some(pl_id), players: Arc::new(Mutex::new(value)), status: arc_mutex!((hashmap!{})), tx: broadcast::channel::<SenderMessage>(10).0, missions: arc_mutex!((HashMap::new())) };
                                 room_send = new_room.id;
                                 state.rooms.lock().await.insert(room_send, new_room);
                             }
@@ -84,19 +84,25 @@ pub async fn receive_task(params: ReceiveParams) {
                     let mut state_vec = HashMap::new();
                     let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
                     let mut users_copy = room.players.lock().await;
-                    
+                    let mut missions = room.missions.lock().await;
+                    for (id,user) in &mut *users_copy {
+                        user.grant_troops(5);
+                        
+                        //TODO! Add missions for players
+                    }
                     let mut indexes_mut = users_copy.iter().map(|u|u.0).cloned().collect::<Vec<_>>();
+
                     let indexes = indexes_mut.clone();
                     dbg!(&indexes_mut);
-                    for (id,_) in &room.countries.0 {
+                    for (id,_) in MAP.iter() {
                         let i = indexes_mut.remove(match indexes_mut.len() {
                             0 => break,
                             1 => 0,
                             len => rng.random_range(0..len)
                         });
-                        let user = users_copy.get_mut(&i).unwrap();
-                        user.grant_troops(5);
-                        state_vec.insert(*id, CStatus{ country_id: *id, location: room.countries.0.get(id).unwrap().name().get_point(), tokens: Some(Tokens { owner: user.id(), amount: 0 }) });
+                        
+                        // user.grant_troops(5);
+                        state_vec.insert(*id, CStatus{ country_id: *id, location: MAP.get(id).unwrap().name().get_point(), tokens: Some(Tokens { owner: users_copy[&i].id(), amount: 1 }) });
                         if indexes_mut.is_empty() {
                             indexes_mut = indexes.clone();
                         }

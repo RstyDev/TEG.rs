@@ -9,18 +9,18 @@ use tokio::{
     sync::{Mutex, broadcast::Sender},
     task,
 };
-use structs::{CStatus, Map, Player};
+use structs::{CStatus, Player};
 use uuid::Uuid;
 
-use crate::tasks::{receive_task::{ReceiveParams, receive_task}, send_task::{SendParams, send_task}};
+use crate::{structs::Mission, tasks::{receive_task::{ReceiveParams, receive_task}, send_task::{SendParams, send_task}}};
 
 #[derive(Debug,Clone)]
 pub struct Room {
     pub id: Uuid,
     pub master: Option<Uuid>,
     pub players: Arc<Mutex<HashMap<Uuid,Player>>>,
-    pub countries: Map,
     pub status: Arc<Mutex<HashMap<Uuid,CStatus>>>,
+    pub missions: Arc<Mutex<HashMap<Uuid, Mission<'static>>>>,
     pub tx: Sender<SenderMessage>,
 }
 #[derive(Clone,Debug, Copy)]

@@ -5,10 +5,10 @@ extern crate gloo_net;
 extern crate sycamore;
 extern crate web_sys;
 
-mod structs;
-mod side_forms;
 mod app;
 mod libs;
+mod side_forms;
+mod structs;
 use app::App;
 
 pub fn main() {

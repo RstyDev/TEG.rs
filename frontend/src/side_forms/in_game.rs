@@ -2,7 +2,7 @@ use sycamore::prelude::*;
 
 #[component(inline_props)]
 pub fn InGame() -> View {
-    view!{
+    view! {
         p(){"In Game"}
     }
 }

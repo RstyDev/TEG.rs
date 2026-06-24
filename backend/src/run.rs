@@ -1,29 +1,46 @@
-use std::{collections::HashMap, env, net::SocketAddr, sync::Arc, io::{ErrorKind, Error}};
-use axum::{Router, extract::{State, WebSocketUpgrade, ws::WebSocket}, response::IntoResponse, routing::get};
+use axum::{
+    Router,
+    extract::{State, WebSocketUpgrade, ws::WebSocket},
+    response::IntoResponse,
+    routing::get,
+};
 use dotenv::dotenv;
 use futures_util::StreamExt;
 use macros::string;
+use std::{
+    collections::HashMap,
+    env,
+    io::{Error, ErrorKind},
+    net::SocketAddr,
+    sync::Arc,
+};
 
+use structs::{CStatus, Player};
 use tokio::{
     net::TcpListener,
     sync::{Mutex, broadcast::Sender},
     task,
 };
-use structs::{CStatus, Player};
 use uuid::Uuid;
 
-use crate::{structs::Mission, tasks::{receive_task::{ReceiveParams, receive_task}, send_task::{SendParams, send_task}}};
+use crate::{
+    structs::Mission,
+    tasks::{
+        receive_task::{ReceiveParams, receive_task},
+        send_task::{SendParams, send_task},
+    },
+};
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Room {
     pub id: Uuid,
     pub master: Option<Uuid>,
-    pub players: Arc<Mutex<HashMap<Uuid,Player>>>,
-    pub status: Arc<Mutex<HashMap<Uuid,CStatus>>>,
+    pub players: Arc<Mutex<HashMap<Uuid, Player>>>,
+    pub status: Arc<Mutex<HashMap<Uuid, CStatus>>>,
     pub missions: Arc<Mutex<HashMap<Uuid, Mission<'static>>>>,
     pub tx: Sender<SenderMessage>,
 }
-#[derive(Clone,Debug, Copy)]
+#[derive(Clone, Debug, Copy)]
 pub enum SenderMessage {
     Move,
     UpdateState,
@@ -42,13 +59,13 @@ pub async fn run() -> std::io::Result<()> {
     let state = AppState {
         rooms: Arc::new(Mutex::new(HashMap::new())),
     };
-    let app = Router::new().route("/ws", get(ws_handler)).with_state(state);
+    let app = Router::new()
+        .route("/ws", get(ws_handler))
+        .with_state(state);
     let addr: SocketAddr = match env::var(string!("HOST")) {
-        Ok(e) => {
-            e
+        Ok(e) => e
             .parse()
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?
-        },
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
         Err(e) => panic!("{e}"),
     };
     let listener = TcpListener::bind(addr).await?;
@@ -57,7 +74,6 @@ pub async fn run() -> std::io::Result<()> {
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
-
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {

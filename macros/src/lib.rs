@@ -1,7 +1,6 @@
 use proc_macro::TokenStream;
-use proc_macro2::{Literal, TokenStream as TokenStream2, TokenTree, Delimiter};
+use proc_macro2::{Delimiter, Literal, TokenStream as TokenStream2, TokenTree};
 use quote::quote;
-
 
 #[proc_macro]
 pub fn arc_mutex(input: TokenStream) -> TokenStream {
@@ -11,7 +10,8 @@ pub fn arc_mutex(input: TokenStream) -> TokenStream {
             let inner_stream = group.stream();
             quote! {
                 Arc::new(Mutex::new(#inner_stream))
-            }.into()
+            }
+            .into()
         }
         _ => panic!("Expected a group of tokens enclosed in parentheses for arc_mutex macro"),
     }
@@ -26,7 +26,8 @@ pub fn string(input: TokenStream) -> TokenStream {
             let literal = lit.to_string().trim_matches('"').to_string();
             quote! {
                 String::from(#literal)
-            }.into()
+            }
+            .into()
         }
         // Some(TokenTree::Ident(ident)) => {
         //     println!("Ident: {:#?}", ident);
@@ -36,7 +37,8 @@ pub fn string(input: TokenStream) -> TokenStream {
         // }
         None => quote! {
             String::new()
-        }.into(),
+        }
+        .into(),
         _ => panic!("Expected a string literal for string macro"),
     }
 }
@@ -45,50 +47,51 @@ pub fn string(input: TokenStream) -> TokenStream {
 pub fn hashmap(input: TokenStream) -> TokenStream {
     let input = TokenStream2::from(input);
     // let map = std::collections::HashMap::new();
-    let elements = input.into_iter().filter_map(|token| {
-        if let TokenTree::Group(group) = token {
-            if group.delimiter() != Delimiter::Brace {
-                panic!("Expected a group of tokens enclosed in braces for hashmap macro");
-            }
-            
-            let stream = group.stream();
-            let mut key = TokenTree::Literal(Literal::string(""));
-            let mut value = TokenTree::Literal(Literal::string(""));
-
-            for (i,inner_token) in stream.into_iter().enumerate() {
-                match inner_token {
-                    TokenTree::Ident(ident) if i % 3 == 0 => {
-                        key = TokenTree::Ident(ident);
-                    }
-                    TokenTree::Literal(lit) if i % 3 == 0 => {
-                        key = TokenTree::Literal(lit);
-                    }
-                    TokenTree::Punct(a) if i % 3 == 1 && a.as_char() == ':' => {
-                        continue
-                    }
-                    TokenTree::Ident(ident) if i % 3 == 2 => {
-                        value = TokenTree::Ident(ident);
-                    }
-                    TokenTree::Literal(lit) if i % 3 == 2 => {
-                        value = TokenTree::Literal(lit);
-                    }
-                    value => panic!("Unexpected token in hashmap macro {:#?}",value),
+    let elements = input
+        .into_iter()
+        .filter_map(|token| {
+            if let TokenTree::Group(group) = token {
+                if group.delimiter() != Delimiter::Brace {
+                    panic!("Expected a group of tokens enclosed in braces for hashmap macro");
                 }
-            }
 
-            Some(quote! {
-                (#key, #value)
-            })
-        } else {
-            None
-        }
-    }).collect::<Vec<_>>();
+                let stream = group.stream();
+                let mut key = TokenTree::Literal(Literal::string(""));
+                let mut value = TokenTree::Literal(Literal::string(""));
+
+                for (i, inner_token) in stream.into_iter().enumerate() {
+                    match inner_token {
+                        TokenTree::Ident(ident) if i % 3 == 0 => {
+                            key = TokenTree::Ident(ident);
+                        }
+                        TokenTree::Literal(lit) if i % 3 == 0 => {
+                            key = TokenTree::Literal(lit);
+                        }
+                        TokenTree::Punct(a) if i % 3 == 1 && a.as_char() == ':' => continue,
+                        TokenTree::Ident(ident) if i % 3 == 2 => {
+                            value = TokenTree::Ident(ident);
+                        }
+                        TokenTree::Literal(lit) if i % 3 == 2 => {
+                            value = TokenTree::Literal(lit);
+                        }
+                        value => panic!("Unexpected token in hashmap macro {:#?}", value),
+                    }
+                }
+
+                Some(quote! {
+                    (#key, #value)
+                })
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
 
     quote! {
         {
             let mut _map: std::collections::HashMap<_, _> = [#(#elements),*].into_iter().collect();
             _map
         }
-    }.into()
-
+    }
+    .into()
 }

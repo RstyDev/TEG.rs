@@ -1,24 +1,38 @@
-use std::{collections::HashMap, sync::Arc};
+use crate::libs::send_message;
 use futures::channel::mpsc::UnboundedSender;
 use gloo_net::websocket::Message;
-use rand::prelude::*;
-use structs::{CStatus, Map, Player, PlayerRole, RoomMaster, Tokens};
+use std::collections::HashMap;
+use structs::{CStatus, Player, PlayerRole, RoomMaster};
 use sycamore::prelude::*;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::MouseEvent;
-use crate::libs::send_message;
 
-use crate::{app::get_point, libs::copy_to_clipboard, structs::{AppStatus, Notification}};
+use crate::{
+    libs::copy_to_clipboard,
+    structs::{AppStatus, Notification},
+};
 
 #[component(inline_props)]
-pub fn Lobby(map: Arc<Map>, users: Signal<HashMap<Uuid, Player>>,status: Signal<HashMap<Uuid,CStatus>>, send: Signal<Option<UnboundedSender<Message>>>, notification: Signal<Notification>, room: Signal<Option<RoomMaster>>, app_status: Signal<AppStatus>, this_player: Signal<Option<Player>>) -> View {
-    let users_sel = create_selector(move||{
-        users.get_clone().into_iter().map(|(_,user)|user).collect::<Vec<_>>()
+pub fn Lobby(
+    users: Signal<HashMap<Uuid, Player>>,
+    status: Signal<HashMap<Uuid, CStatus>>,
+    send: Signal<Option<UnboundedSender<Message>>>,
+    notification: Signal<Notification>,
+    room: Signal<Option<RoomMaster>>,
+    app_status: Signal<AppStatus>,
+    this_player: Signal<Option<Player>>,
+) -> View {
+    let users_sel = create_selector(move || {
+        users
+            .get_clone()
+            .into_iter()
+            .map(|(_, user)| user)
+            .collect::<Vec<_>>()
     });
     console_dbg!(&this_player);
-    
-    view!{
+
+    view! {
         p(){"Jugadores actuales:"}
         Keyed(
             list=users_sel,
@@ -29,14 +43,13 @@ pub fn Lobby(map: Arc<Map>, users: Signal<HashMap<Uuid, Player>>,status: Signal<
         )
         (match this_player.get_clone().map(|player|player.role()).unwrap_or(PlayerRole::Player{ room: Uuid::nil() }) {
             PlayerRole::Master => {
-                let map = map.clone();
                 view!{
                     (match room.get_clone() {
                         Some(room_master) => {
                             let c2 = room_master.room_id.clone();
                             view!{
                                 p(){(format!("Codigo de sala: {}", room_master.room_id))}
-                                button(on:click=move |MouseEvent| {
+                                button(on:click=move |_ev:MouseEvent| {
                                     let c2 = c2;
                                     spawn_local(async move {
                                         if let Err(e) = copy_to_clipboard(c2.to_string().as_str()).await {
@@ -55,20 +68,6 @@ pub fn Lobby(map: Arc<Map>, users: Signal<HashMap<Uuid, Player>>,status: Signal<
                         let indexes = users.get_clone().keys().into_iter().enumerate().map(|(i,_)|i).collect::<Vec<_>>();
                         // console_log!("indexes: {:?}", indexes);
                         if !indexes.is_empty(){
-                            // let mut indexes_mut = indexes.clone();
-                            // let mut state_vec = HashMap::new();
-                            // let mut rng = rand::rng();
-                            // let users_copy = users_sel.get_clone();
-                            // for (country_id,_) in map.0.clone() {
-                            //     let i = indexes_mut.remove(rng.random_range(0..indexes_mut.len()));
-                            //     state_vec.insert(country_id,CStatus{ country_id, location: get_point(map.0.get(&country_id).unwrap().name()), tokens: Some(Tokens { owner: users_copy[i].id(), amount: 1 }) });
-                            //     if indexes_mut.is_empty() {
-                            //         indexes_mut = indexes.clone();
-                            //     }
-                            // }
-                            // console_dbg!(&state_vec);
-                            
-                            // status.set(state_vec);
                             spawn_local(async move {
                                 if let Err(e) = send_message(*send, structs::MessageDTO::StartGame { room_id: room.with(|r|r.as_ref().unwrap().room_id) }).await {
                                     notification.set(Notification::Error(e))
@@ -87,8 +86,8 @@ pub fn Lobby(map: Arc<Map>, users: Signal<HashMap<Uuid, Player>>,status: Signal<
     }
 }
 
-#[derive(Copy,Clone,PartialEq, Eq, Debug)]
-enum Action {
-    CreateRoom,
-    JoinRoom,
-}
+// #[derive(Copy,Clone,PartialEq, Eq, Debug)]
+// enum Action {
+//     CreateRoom,
+//     JoinRoom,
+// }

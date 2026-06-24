@@ -1,6 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use serde::{Serialize, Deserialize};
-use structs::Player;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -8,10 +7,10 @@ pub enum Notification {
     Error(String),
     Warning(String),
     Info(String),
-    None
+    None,
 }
 
-#[derive(Copy,Clone,PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum AppStatus {
     Login,
     Lobby,
@@ -32,5 +31,11 @@ impl AppStatus {
 pub enum GameStage {
     AddingTroops { player_id: Uuid },
     Moving { player_id: Uuid },
-    Won { player_id: Uuid }
+    Won { player_id: Uuid },
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct Mission {
+    pub name: String,
+    pub objective: Option<Uuid>,
 }

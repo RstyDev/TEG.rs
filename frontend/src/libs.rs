@@ -1,16 +1,19 @@
-use std::{collections::HashMap, sync::{Arc, LazyLock}};
+use std::{collections::HashMap, sync::LazyLock};
 
 use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use macros::string;
-use structs::{CStatus, Map, MessageDTO, Player, ResponseDTO, RoomMaster};
-use sycamore::{reactive::{ReadSignal, Signal}, web::{console_dbg, console_error, console_log}};
+use structs::{CStatus, MessageDTO, Player, ResponseDTO, RoomMaster};
+use sycamore::{
+    reactive::{ReadSignal, Signal},
+    web::{console_dbg, console_error, console_log},
+};
 use uuid::Uuid;
-use wasm_bindgen::{JsValue, UnwrapThrowExt};
+use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{Clipboard, js_sys::Date, window};
 
-use crate::{app::get_point, structs::{AppStatus, Notification}};
+use crate::structs::{AppStatus, Notification};
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
 pub async fn send_message(
     send: ReadSignal<Option<UnboundedSender<Message>>>,
@@ -30,48 +33,82 @@ pub async fn send_message(
     }
 }
 
-pub async fn connect(ConnectParams { map, users, status, ws_sender, notification, app_status, this_player, room_master } : ConnectParams) {
-    console_log!("{}",HOST.as_str());
-    
+pub async fn connect(
+    ConnectParams {
+        users,
+        status,
+        ws_sender,
+        notification,
+        app_status,
+        this_player,
+        room_master,
+    }: ConnectParams,
+) {
+    console_log!("{}", HOST.as_str());
+
     let ws = match WebSocket::open(&HOST) {
         Ok(ws) => ws,
         Err(e) => {
             console_error!("Failed to connect to WebSocket: {}", e);
             return;
-        },
+        }
     };
-    
+
     console_log!("Connected to WebSocket, state: {:#?}", ws.state());
     let (mut write, mut read) = ws.split();
-    let (tx,mut rx) = futures::channel::mpsc::unbounded();
+    let (tx, mut rx) = futures::channel::mpsc::unbounded();
     ws_sender.set(Some(tx));
     spawn_local(async move {
         while let Some(Ok(Message::Text(msg))) = read.next().await {
             match serde_json::from_str::<ResponseDTO>(&msg) {
                 Ok(msg_dto) => match msg_dto {
-                    ResponseDTO::UpdateState { statuses } => for st in statuses {
-                        let country_st = match status.get_clone().get(&st.country_id) {
-                            Some(s) => s,
-                            None => {
-                                console_error!("Received status for unknown country: {}", st.country_id);
-                                continue},
-                        };
-                        
-
-                    },
-                    ResponseDTO::UpdateRoom { room_id, players, statuses } => {
+                    ResponseDTO::UpdateState { statuses } => {
+                        for st in statuses {
+                            let country_st = match status.get_clone().get(&st.country_id) {
+                                Some(s) => s,
+                                None => {
+                                    console_error!(
+                                        "Received status for unknown country: {}",
+                                        st.country_id
+                                    );
+                                    continue;
+                                }
+                            };
+                        }
+                    }
+                    ResponseDTO::UpdateRoom {
+                        room_id,
+                        players,
+                        statuses,
+                    } => {
                         users.set(players);
                         status.set(statuses);
                     }
-                    ResponseDTO::GameStarted { room, players, status: status_ } => {
+                    ResponseDTO::GameStarted {
+                        room,
+                        players,
+                        status: status_,
+                        starter,
+                    } => {
                         users.set(players);
                         status.set(status_);
                         app_status.set(AppStatus::InGame);
-                    },
+                    }
                     ResponseDTO::MissionCompleted { player } => (),
-                    ResponseDTO::Error { message } => notification.set(Notification::Error(message)),
-                    ResponseDTO::LoggedIn { users: users_, this_player: this_player_, room } => {
-                        console_log!("Logged in: users: {:#?}, this_player: {:#?}, room: {:#?}", users_, this_player_, room);
+                    ResponseDTO::Error { message } => {
+                        notification.set(Notification::Error(message))
+                    }
+                    ResponseDTO::LoggedIn {
+                        users: users_,
+                        this_player: this_player_,
+                        room,
+                    } => {
+                        console_log!(
+                            "Logged in: users: {:#?}, this_player: {:#?}, room: {:#?}",
+                            users_,
+                            this_player_,
+                            room
+                        );
                         // console_dbg!(&msg);
                         users.set(users_);
                         // status.set(status_.iter().map(|(id, st)|{
@@ -83,17 +120,27 @@ pub async fn connect(ConnectParams { map, users, status, ws_sender, notification
                         this_player.set(Some(this_player_));
                         room_master.set(Some(room));
                         // app_status.set_fn(|st|st.next());
-                    },
-                    ResponseDTO::CompleteUpdate { room, players, status: status_, this_player: this_player_ } => {
-                        console_log!("Complete Update received: master: {:#?}, players: {:#?}, status: {:#?}", room, players, status_);
+                    }
+                    ResponseDTO::CompleteUpdate {
+                        room,
+                        players,
+                        status: status_,
+                        this_player: this_player_,
+                    } => {
+                        console_log!(
+                            "Complete Update received: master: {:#?}, players: {:#?}, status: {:#?}",
+                            room,
+                            players,
+                            status_
+                        );
                         // console_dbg!(&msg);
                         this_player.set_silent(players.get(&this_player_).cloned());
                         room_master.set(Some(room));
                         users.set(players);
 
                         // status.set(status_);
-                        app_status.set_fn(|st|st.next());
-                    },
+                        app_status.set_fn(|st| st.next());
+                    }
                 },
                 Err(e) => console_error!("Failed to parse message: {}", e),
             }
@@ -154,7 +201,6 @@ pub async fn copy_to_clipboard(text: &str) -> Result<(), JsValue> {
 }
 
 pub struct ConnectParams {
-    pub map: Arc<Map>,
     pub users: Signal<HashMap<Uuid, Player>>,
     pub status: Signal<HashMap<Uuid, CStatus>>,
     pub ws_sender: Signal<Option<UnboundedSender<Message>>>,

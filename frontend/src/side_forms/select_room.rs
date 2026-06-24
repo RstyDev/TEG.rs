@@ -1,24 +1,27 @@
 use std::str::FromStr;
 
+use crate::{libs::send_message, structs::Notification};
 use futures::channel::mpsc::UnboundedSender;
 use gloo_net::websocket::Message;
+use macros::string;
 use structs::{MessageDTO, Player, PlayerRole};
 use sycamore::prelude::*;
-use macros::string;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{MouseEvent, SubmitEvent};
-use crate::{libs::send_message, structs::Notification};
 
 #[component(inline_props)]
-pub fn SelectRoom(send: Signal<Option<UnboundedSender<Message>>>, notification: Signal<Notification>) -> View {
+pub fn SelectRoom(
+    send: Signal<Option<UnboundedSender<Message>>>,
+    notification: Signal<Notification>,
+) -> View {
     let action = create_signal(Action::CreateRoom);
     let user_name = create_signal(string!());
     let room_code = create_signal(string!());
     // create_effect(move || {
     //     console_log!("user: name: {}",user_name.get_clone());
     // });
-    view!{
+    view! {
         button(class=match action.get(){
             Action::CreateRoom => "selected",
             _ => "",
@@ -65,7 +68,7 @@ pub fn SelectRoom(send: Signal<Option<UnboundedSender<Message>>>, notification: 
                             },
                             Err(e) => Err(format!("Codigo de sala inválido: {e}")),
                         }
-                        
+
                     },
                 } {
                     notification.set(Notification::Error(format!("Error: {e}")));
@@ -90,7 +93,7 @@ pub fn SelectRoom(send: Signal<Option<UnboundedSender<Message>>>, notification: 
     }
 }
 
-#[derive(Copy,Clone,PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum Action {
     CreateRoom,
     JoinRoom,

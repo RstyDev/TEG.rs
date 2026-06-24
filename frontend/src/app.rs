@@ -1,21 +1,35 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
 use futures::channel::mpsc::UnboundedSender;
 use gloo_net::websocket::Message;
 use gloo_timers::future::sleep;
 use macros::string;
-use structs::{CName, CStatus, Map, Player, Point, RoomMaster};
+use std::{collections::HashMap, time::Duration};
+use structs::{CName, CStatus, MAP, Player, Point, RoomMaster};
 use sycamore::{futures::spawn_local, prelude::*};
 
-use crate::{libs::{ConnectParams, connect}, side_forms::{InGame, Lobby, SelectRoom}, structs::{AppStatus, Notification}};
+use crate::{
+    libs::{ConnectParams, connect},
+    side_forms::{InGame, Lobby, SelectRoom},
+    structs::{AppStatus, Notification},
+};
 const CSS: &str = "border-radius: 10px; border: 2px solid black; background-color: white; padding: 5px; font-size: 14px; font-weight: bold;";
 
 #[component]
 pub fn App() -> View {
-    let map = Arc::new(Map::get());
     let users = create_signal(HashMap::new());
-    let status = create_signal(map.0.clone().into_iter().map(|(country_id,c)|{
-        (country_id,CStatus { country_id, location: get_point(c.name()), tokens: None })
-    }).collect::<HashMap<_,_>>());
+    let status = create_signal(
+        MAP.iter()
+            .map(|(&country_id, c)| {
+                (
+                    country_id,
+                    CStatus {
+                        country_id,
+                        location: get_point(c.name()),
+                        tokens: None,
+                    },
+                )
+            })
+            .collect::<HashMap<_, _>>(),
+    );
     let notification = create_signal(Notification::None);
     let ws_sender: Signal<Option<UnboundedSender<Message>>> =
         create_signal(None::<UnboundedSender<Message>>);
@@ -27,7 +41,7 @@ pub fn App() -> View {
         console_dbg!(&users);
     });
     create_memo(move || {
-        let err = notification.with(|e|e != &Notification::None);
+        let err = notification.with(|e| e != &Notification::None);
         spawn_local(async move {
             if err {
                 sleep(Duration::from_millis(2000)).await;
@@ -40,18 +54,25 @@ pub fn App() -> View {
         console_log!("{:#?}", this_player.get_clone());
         console_log!("{:#?}", room_master.get_clone());
     });
-    let connect_params = ConnectParams {map:map.clone(),users,status,ws_sender:ws_sender.clone(),notification, app_status, this_player: this_player.clone(), room_master: room_master.clone() };
+    let connect_params = ConnectParams {
+        users,
+        status,
+        ws_sender: ws_sender.clone(),
+        notification,
+        app_status,
+        this_player: this_player.clone(),
+        room_master: room_master.clone(),
+    };
     spawn_local(connect(connect_params));
     // console_dbg!(&map);
-    let map2 = map.clone();
-    view!{
+    view! {
         article(){
             img(src="./public/map.webp", alt="Mapa del juego",width="1200px", height="800px"){}
         }
         aside(id="side_forms"){
             (match app_status.get() {
                 AppStatus::Login => view!{SelectRoom(send = ws_sender, notification = notification)},
-                AppStatus::Lobby => {let map2 = map2.to_owned();view!{Lobby(map=map2, users=users, status=status, send = ws_sender, notification = notification, room=room_master, app_status=app_status, this_player = this_player)}},
+                AppStatus::Lobby => view!{Lobby(users=users, status=status, send = ws_sender, notification = notification, room=room_master, app_status=app_status, this_player = this_player)},
                 AppStatus::InGame => view!{InGame()},
             })
             (status.get_clone().into_iter().map(|(_,c_status)|view!{
@@ -84,74 +105,71 @@ pub fn App() -> View {
     }
 }
 
-
-
-
 pub fn get_point(name: CName) -> Point {
     match name {
-        CName::Canadá => Point{ x: 200, y: 150 },
-        CName::Yukón => Point{ x: 120, y: 210 },
-        CName::Alaska => Point{ x: 35, y: 290 },
-        CName::Groenlandia => Point{ x: 425, y: 150 },
-        CName::Oregón => Point{ x: 95, y: 350 },
-        CName::California => Point{ x: 165, y: 385 },
-        CName::México => Point{ x: 300, y: 415 },
-        CName::NuevaYork => Point{ x: 215, y: 255 },
-        CName::Terranova => Point{ x: 260, y: 240 },
-        CName::Labrador => Point{ x: 320, y: 210 },
-        CName::Argentina => Point{ x: 410, y: 545 },
-        CName::Brasil => Point{ x: 450, y: 460 },
-        CName::Perú => Point{ x: 360, y: 495 },
-        CName::Colombia => Point{ x: 370, y: 430 },
-        CName::Chile => Point{ x: 370, y: 600 },
-        CName::Uruguay => Point{ x: 460, y: 540 },
-        CName::GranBretaña => Point{ x: 660, y: 290 },
-        CName::Islandia => Point{ x: 520, y: 280 },
-        CName::España => Point{ x: 620, y: 420 },
-        CName::Francia => Point{ x: 710, y: 360 }, 
-        CName::Alemania => Point{ x: 770, y: 340 },
-        CName::Italia => Point{ x: 760, y: 420 },
-        CName::Polonia => Point{ x: 820, y: 330 },
-        CName::Rusia => Point{ x: 815, y: 220 },
-        CName::Suecia => Point{ x: 710, y: 200 },
-        CName::Sahara => Point{ x: 720, y: 515 },
-        CName::Etiopía => Point{ x: 805, y: 540 },
-        CName::Egipto => Point{ x: 905, y: 530 },
-        CName::Madagascar => Point{ x: 930, y: 600 },
-        CName::Zaire => Point{ x: 755, y: 590 },
-        CName::Sudáfrica => Point{ x: 860, y: 640 },
-        CName::Arabia => Point{ x: 965, y: 465 },
-        CName::Aral => Point{ x: 870, y: 170 },
-        CName::China => Point{ x: 1050, y: 260 },
-        CName::India => Point{ x: 1040, y: 390 },
-        CName::Irán => Point{ x: 915, y: 280 },
-        CName::Tartaria => Point{ x: 900, y: 135 },
-        CName::Taymyr => Point{ x: 955, y: 135 },
-        CName::Japón => Point{ x: 1150, y: 230 },
-        CName::Kamchatka => Point{ x: 1030, y: 130 },
-        CName::Siberia => Point{ x: 930, y: 205 },
-        CName::Mongolia => Point{ x: 950, y: 240 },
-        CName::Gobi => Point{ x: 1015, y: 275 },
-        CName::Malasia => Point{ x: 1130, y: 390 },
-        CName::Turquía => Point{ x: 875, y: 390 },
-        CName::Israel => Point{ x: 875, y: 430 },
-        CName::Sumatra => Point{ x: 990, y: 515 },
-        CName::Borneo => Point{ x: 1080, y: 460 },
-        CName::Java => Point{ x: 1135, y: 445 },
-        CName::Australia => Point{ x: 1130, y: 545 },
+        CName::Canadá => Point { x: 200, y: 150 },
+        CName::Yukón => Point { x: 120, y: 210 },
+        CName::Alaska => Point { x: 35, y: 290 },
+        CName::Groenlandia => Point { x: 425, y: 150 },
+        CName::Oregón => Point { x: 95, y: 350 },
+        CName::California => Point { x: 165, y: 385 },
+        CName::México => Point { x: 300, y: 415 },
+        CName::NuevaYork => Point { x: 215, y: 255 },
+        CName::Terranova => Point { x: 260, y: 240 },
+        CName::Labrador => Point { x: 320, y: 210 },
+        CName::Argentina => Point { x: 410, y: 545 },
+        CName::Brasil => Point { x: 450, y: 460 },
+        CName::Perú => Point { x: 360, y: 495 },
+        CName::Colombia => Point { x: 370, y: 430 },
+        CName::Chile => Point { x: 370, y: 600 },
+        CName::Uruguay => Point { x: 460, y: 540 },
+        CName::GranBretaña => Point { x: 660, y: 290 },
+        CName::Islandia => Point { x: 520, y: 280 },
+        CName::España => Point { x: 620, y: 420 },
+        CName::Francia => Point { x: 710, y: 360 },
+        CName::Alemania => Point { x: 770, y: 340 },
+        CName::Italia => Point { x: 760, y: 420 },
+        CName::Polonia => Point { x: 820, y: 330 },
+        CName::Rusia => Point { x: 815, y: 220 },
+        CName::Suecia => Point { x: 710, y: 200 },
+        CName::Sahara => Point { x: 720, y: 515 },
+        CName::Etiopía => Point { x: 805, y: 540 },
+        CName::Egipto => Point { x: 905, y: 530 },
+        CName::Madagascar => Point { x: 930, y: 600 },
+        CName::Zaire => Point { x: 755, y: 590 },
+        CName::Sudáfrica => Point { x: 860, y: 640 },
+        CName::Arabia => Point { x: 965, y: 465 },
+        CName::Aral => Point { x: 870, y: 170 },
+        CName::China => Point { x: 1050, y: 260 },
+        CName::India => Point { x: 1040, y: 390 },
+        CName::Irán => Point { x: 915, y: 280 },
+        CName::Tartaria => Point { x: 900, y: 135 },
+        CName::Taymyr => Point { x: 955, y: 135 },
+        CName::Japón => Point { x: 1150, y: 230 },
+        CName::Kamchatka => Point { x: 1030, y: 130 },
+        CName::Siberia => Point { x: 930, y: 205 },
+        CName::Mongolia => Point { x: 950, y: 240 },
+        CName::Gobi => Point { x: 1015, y: 275 },
+        CName::Malasia => Point { x: 1130, y: 390 },
+        CName::Turquía => Point { x: 875, y: 390 },
+        CName::Israel => Point { x: 875, y: 430 },
+        CName::Sumatra => Point { x: 990, y: 515 },
+        CName::Borneo => Point { x: 1080, y: 460 },
+        CName::Java => Point { x: 1135, y: 445 },
+        CName::Australia => Point { x: 1130, y: 545 },
     }
 }
 /*
 OVERFLOW
-Over 1: 15 34 56   
+Over 1: 15 34 56
 Over 2: 100 176
 Prom: 78
 New: 15
 
 UNDERFLOW
-Root: 
-Leaf: 
-Fusionar: 
+Root:
+Leaf:
+Fusionar:
 
 NodosLibres: []
 

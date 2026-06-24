@@ -1,6 +1,6 @@
+mod run;
 mod structs;
 mod tasks;
-mod run;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {

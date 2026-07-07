@@ -39,3 +39,17 @@ pub struct Mission {
     pub name: String,
     pub objective: Option<Uuid>,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GamePhase {
+    pub player: Uuid,
+    pub movement: Movement,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Movement {
+    AssignTroops,
+    Advance,
+    Attack,
+    Defend,
+}

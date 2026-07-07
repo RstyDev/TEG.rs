@@ -80,18 +80,10 @@ pub async fn send_task(params: SendParams) {
                                         arc_rooms.lock().await.get(&player.room_id).cloned();
                                 }
                                 if let Some(room) = room_lock {
-                                    let updated_status = room
-                                        .status
-                                        .lock()
-                                        .await
-                                        .clone()
-                                        .values()
-                                        .cloned()
-                                        .collect::<Vec<_>>();
                                     if let Err(e) = send
                                         .send(Message::Text(
                                             serde_json::to_string(&ResponseDTO::UpdateState {
-                                                statuses: updated_status,
+                                                statuses: room.status.lock().await.clone(),
                                             })
                                             .unwrap_or_default()
                                             .into(),
@@ -122,16 +114,17 @@ pub async fn send_task(params: SendParams) {
                                 if let Some(room) = room_lock {
                                     let players = room.players.lock().await.to_owned();
                                     let starter = *players.keys().choose(&mut rand::rng()).unwrap();
+                                    let missions = room.missions.lock().await.to_owned();
                                     if let Err(e) = send
                                         .send(Message::Text(
                                             serde_json::to_string(&ResponseDTO::GameStarted {
-                                                room: RoomMaster {
-                                                    room_id: player.room_id,
-                                                    master: player.player.id(),
-                                                },
                                                 players,
                                                 status: room.status.lock().await.to_owned(),
                                                 starter,
+                                                missions: missions
+                                                    .into_iter()
+                                                    .map(|(id, mission)| (id, mission.name()))
+                                                    .collect(),
                                             })
                                             .unwrap_or_default()
                                             .into(),
@@ -152,17 +145,18 @@ pub async fn send_task(params: SendParams) {
                             let players = room.players.lock().await.to_owned();
                             let status = room.status.lock().await.to_owned();
                             let starter = *players.keys().choose(&mut rand::rng()).unwrap();
-                            let master = players.get(room.master.as_ref().unwrap()).unwrap().id();
+                            let missions_copy = room.missions.lock().await.clone();
+                            let missions = missions_copy
+                                .into_iter()
+                                .map(|(id, mission)| (id, mission.name()))
+                                .collect();
                             if let Err(e) = send
                                 .send(
                                     serde_json::to_string(&ResponseDTO::GameStarted {
-                                        room: RoomMaster {
-                                            room_id: room.id,
-                                            master,
-                                        },
                                         players,
                                         status,
                                         starter,
+                                        missions,
                                     })
                                     .expect("Formatting err")
                                     .into(),
@@ -200,9 +194,9 @@ pub async fn send_task(params: SendParams) {
                             {
                                 println!("Error sending login message: {e}");
                                 continue;
-                            } else {
-                                println!("Message sent - 107")
-                            }
+                            } // else {
+                            //     println!("Message sent - 107")
+                            // }
                         }
                     }
                 }

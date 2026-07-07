@@ -15,7 +15,7 @@ use std::{
     sync::Arc,
 };
 
-use structs::{CStatus, Player};
+use structs::{Player, Tokens};
 use tokio::{
     net::TcpListener,
     sync::{Mutex, broadcast::Sender},
@@ -36,7 +36,7 @@ pub struct Room {
     pub id: Uuid,
     pub master: Option<Uuid>,
     pub players: Arc<Mutex<HashMap<Uuid, Player>>>,
-    pub status: Arc<Mutex<HashMap<Uuid, CStatus>>>,
+    pub status: Arc<Mutex<HashMap<Uuid, Tokens>>>,
     pub missions: Arc<Mutex<HashMap<Uuid, Mission<'static>>>>,
     pub tx: Sender<SenderMessage>,
 }

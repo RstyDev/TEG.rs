@@ -1,8 +1,9 @@
 use crate::libs::send_message;
 use futures::channel::mpsc::UnboundedSender;
 use gloo_net::websocket::Message;
+use macros::string;
 use std::collections::HashMap;
-use structs::{CStatus, Player, PlayerRole, RoomMaster};
+use structs::{Player, PlayerRole, RoomMaster, Tokens};
 use sycamore::prelude::*;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
@@ -16,7 +17,7 @@ use crate::{
 #[component(inline_props)]
 pub fn Lobby(
     users: Signal<HashMap<Uuid, Player>>,
-    status: Signal<HashMap<Uuid, CStatus>>,
+    status: Signal<HashMap<Uuid, Tokens>>,
     send: Signal<Option<UnboundedSender<Message>>>,
     notification: Signal<Notification>,
     room: Signal<Option<RoomMaster>>,
@@ -65,16 +66,18 @@ pub fn Lobby(
                     })
                     button(on:click=move|ev:MouseEvent|{
                         ev.prevent_default();
-                        let indexes = users.get_clone().keys().into_iter().enumerate().map(|(i,_)|i).collect::<Vec<_>>();
+                        let indexes = users.get_clone().keys().into_iter().enumerate().map(|(i,_)|i).count();
                         // console_log!("indexes: {:?}", indexes);
-                        if !indexes.is_empty(){
+                        if indexes>1{
                             spawn_local(async move {
                                 if let Err(e) = send_message(*send, structs::MessageDTO::StartGame { room_id: room.with(|r|r.as_ref().unwrap().room_id) }).await {
                                     notification.set(Notification::Error(e))
                                 }
 
                             });
-                            app_status.set_fn(|st|st.next());
+                            // app_status.set_fn(|st|st.next());
+                        } else {
+                            notification.set(Notification::Error(string!("Se necesitan como mínimo dos jugadores")));
                         }
                     }){"Empezar"}
                 }

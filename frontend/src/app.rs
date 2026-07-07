@@ -2,44 +2,70 @@ use futures::channel::mpsc::UnboundedSender;
 use gloo_net::websocket::Message;
 use gloo_timers::future::sleep;
 use macros::string;
-use std::{collections::HashMap, time::Duration};
-use structs::{CName, CStatus, MAP, Player, Point, RoomMaster};
+use wasm_bindgen::{prelude::Closure, JsCast};
+use std::{collections::HashMap, sync::OnceLock, time::Duration};
+use structs::{MAP, Player, Point, RoomMaster, Tokens, initialize_map};
 use sycamore::{futures::spawn_local, prelude::*};
-
+use uuid::Uuid;
+use web_sys::window;
 use crate::{
-    libs::{ConnectParams, connect},
+    libs::{ConnectParams, connect, get_point},
     side_forms::{InGame, Lobby, SelectRoom},
-    structs::{AppStatus, Notification},
+    structs::{AppStatus, GamePhase, Notification},
 };
 const CSS: &str = "border-radius: 10px; border: 2px solid black; background-color: white; padding: 5px; font-size: 14px; font-weight: bold;";
-
+static LOCATIONS: OnceLock<HashMap<Uuid, Point>> = OnceLock::new();
 #[component]
 pub fn App() -> View {
+    initialize_map();
+    let width = create_signal(get_width());
+    let closure = Closure::<dyn Fn()>::new(move || {
+        width.set(get_width());
+    });
+    window()
+        .unwrap()
+        .add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())
+        .unwrap();
+
+    closure.forget();
     let users = create_signal(HashMap::new());
+    let game_phase = create_signal(GamePhase {
+        player: Uuid::nil(),
+        movement: crate::structs::Movement::AssignTroops,
+    });
+    let missions = create_signal(HashMap::new());
+
+    LOCATIONS.set({
+        MAP.get_or_init(Default::default)
+            .iter()
+            .map(|(id, c)| (*id, get_point(c.name(), width.get()*0.75)))
+            .collect::<HashMap<_, _>>()
+    }).unwrap();
+    console_dbg!(&LOCATIONS);
     let status = create_signal(
-        MAP.iter()
-            .map(|(&country_id, c)| {
+        MAP.get_or_init(Default::default).iter()
+            .map(|(&country_id, _)| {
                 (
                     country_id,
-                    CStatus {
-                        country_id,
-                        location: get_point(c.name()),
-                        tokens: None,
+                    Tokens {
+                        owner: Uuid::nil(),
+                        amount: 0,
                     },
                 )
             })
             .collect::<HashMap<_, _>>(),
     );
+
     let notification = create_signal(Notification::None);
     let ws_sender: Signal<Option<UnboundedSender<Message>>> =
         create_signal(None::<UnboundedSender<Message>>);
     let app_status = create_signal(AppStatus::Login);
     let this_player = create_signal(None::<Player>);
     let room_master = create_signal(None::<RoomMaster>);
-    create_memo(move || {
-        // console_dbg!(&status);
-        console_dbg!(&users);
-    });
+    // create_memo(move || {
+    //     // console_dbg!(&status);
+    //     // console_dbg!(&users);
+    // });
     create_memo(move || {
         let err = notification.with(|e| e != &Notification::None);
         spawn_local(async move {
@@ -62,27 +88,40 @@ pub fn App() -> View {
         app_status,
         this_player: this_player.clone(),
         room_master: room_master.clone(),
+        missions,
+        game_phase,
     };
     spawn_local(connect(connect_params));
     // console_dbg!(&map);
     view! {
         article(){
-            img(src="./public/map.webp", alt="Mapa del juego",width="1200px", height="800px"){}
+            img(src="./public/map.webp", alt="Mapa del juego",width=format!("{}px",width.get()*0.75), height=format!("{}px",width.get()*0.5)){}
         }
         aside(id="side_forms"){
             (match app_status.get() {
                 AppStatus::Login => view!{SelectRoom(send = ws_sender, notification = notification)},
                 AppStatus::Lobby => view!{Lobby(users=users, status=status, send = ws_sender, notification = notification, room=room_master, app_status=app_status, this_player = this_player)},
-                AppStatus::InGame => view!{InGame()},
+                AppStatus::InGame => view!{InGame(missions = missions, users=users, status=status, send = ws_sender, notification = notification, room=room_master, this_player = this_player, game_phase = game_phase)},
             })
-            (status.get_clone().into_iter().map(|(_,c_status)|view!{
-                article(class="tokens"){
-                        p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c_status.location.x, c_status.location.y)){(match &c_status.tokens{
+            (LOCATIONS.get_or_init(Default::default).iter().map(|(id,c)|{
+                let status = status.with(|st| st.get(&id).cloned());
+                view!{
+                    article(class="tokens"){
+                        p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c.x, c.y)){(match &status{
                             None => string!("0"),
                             Some(tokens) => format!("{}",tokens.amount),
                         })}
                     }
-            }).collect::<Vec<View>>())
+                }
+            }).collect::<Vec<_>>())
+            // (status.get_clone().into_iter().map(|(id,c_status)|view!{
+            //     article(class="tokens"){
+            //             p(style=format!("{}position:absolute; left:{}px; top:{}px;", CSS, c_status.location.x, c_status.location.y)){(match &c_status.tokens{
+            //                 None => string!("0"),
+            //                 Some(tokens) => format!("{}",tokens.amount),
+            //             })}
+            //         }
+            // }).collect::<Vec<View>>())
             // Keyed(
             //     list=status,
             //     view=|c_status| view!{
@@ -105,59 +144,9 @@ pub fn App() -> View {
     }
 }
 
-pub fn get_point(name: CName) -> Point {
-    match name {
-        CName::Canadá => Point { x: 200, y: 150 },
-        CName::Yukón => Point { x: 120, y: 210 },
-        CName::Alaska => Point { x: 35, y: 290 },
-        CName::Groenlandia => Point { x: 425, y: 150 },
-        CName::Oregón => Point { x: 95, y: 350 },
-        CName::California => Point { x: 165, y: 385 },
-        CName::México => Point { x: 300, y: 415 },
-        CName::NuevaYork => Point { x: 215, y: 255 },
-        CName::Terranova => Point { x: 260, y: 240 },
-        CName::Labrador => Point { x: 320, y: 210 },
-        CName::Argentina => Point { x: 410, y: 545 },
-        CName::Brasil => Point { x: 450, y: 460 },
-        CName::Perú => Point { x: 360, y: 495 },
-        CName::Colombia => Point { x: 370, y: 430 },
-        CName::Chile => Point { x: 370, y: 600 },
-        CName::Uruguay => Point { x: 460, y: 540 },
-        CName::GranBretaña => Point { x: 660, y: 290 },
-        CName::Islandia => Point { x: 520, y: 280 },
-        CName::España => Point { x: 620, y: 420 },
-        CName::Francia => Point { x: 710, y: 360 },
-        CName::Alemania => Point { x: 770, y: 340 },
-        CName::Italia => Point { x: 760, y: 420 },
-        CName::Polonia => Point { x: 820, y: 330 },
-        CName::Rusia => Point { x: 815, y: 220 },
-        CName::Suecia => Point { x: 710, y: 200 },
-        CName::Sahara => Point { x: 720, y: 515 },
-        CName::Etiopía => Point { x: 805, y: 540 },
-        CName::Egipto => Point { x: 905, y: 530 },
-        CName::Madagascar => Point { x: 930, y: 600 },
-        CName::Zaire => Point { x: 755, y: 590 },
-        CName::Sudáfrica => Point { x: 860, y: 640 },
-        CName::Arabia => Point { x: 965, y: 465 },
-        CName::Aral => Point { x: 870, y: 170 },
-        CName::China => Point { x: 1050, y: 260 },
-        CName::India => Point { x: 1040, y: 390 },
-        CName::Irán => Point { x: 915, y: 280 },
-        CName::Tartaria => Point { x: 900, y: 135 },
-        CName::Taymyr => Point { x: 955, y: 135 },
-        CName::Japón => Point { x: 1150, y: 230 },
-        CName::Kamchatka => Point { x: 1030, y: 130 },
-        CName::Siberia => Point { x: 930, y: 205 },
-        CName::Mongolia => Point { x: 950, y: 240 },
-        CName::Gobi => Point { x: 1015, y: 275 },
-        CName::Malasia => Point { x: 1130, y: 390 },
-        CName::Turquía => Point { x: 875, y: 390 },
-        CName::Israel => Point { x: 875, y: 430 },
-        CName::Sumatra => Point { x: 990, y: 515 },
-        CName::Borneo => Point { x: 1080, y: 460 },
-        CName::Java => Point { x: 1135, y: 445 },
-        CName::Australia => Point { x: 1130, y: 545 },
-    }
+
+fn get_width() -> f32 {
+    window().unwrap().inner_width().unwrap().as_f64().unwrap() as f32
 }
 /*
 OVERFLOW

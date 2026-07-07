@@ -7,7 +7,7 @@ use rand::{
     RngExt, SeedableRng,
     rngs::{StdRng, SysRng},
 };
-use structs::{CStatus, MAP, MessageDTO, Tokens};
+use structs::{MAP, MessageDTO, Tokens};
 use tokio::sync::{Mutex, broadcast};
 use uuid::Uuid;
 
@@ -109,24 +109,22 @@ pub async fn receive_task(params: ReceiveParams) {
                         if let (Some(attacker_status), Some(defender_status)) =
                             (attacker_status, defender_status)
                         {
-                            if let Some(attacker_tokens) = &attacker_status.tokens {
-                                if attacker_tokens.owner == player_id {
-                                    println!(
-                                        "Player {} is attacking from {} to {} with {} troops, having {} tokens",
-                                        player_id, from, to, troops, attacker_tokens.amount
-                                    );
-                                } else {
-                                    println!(
-                                        "Player {} is not the owner of the attacking country {}",
-                                        player_id, from
-                                    );
-                                }
-                                if let Err(e) = room.tx.send(SenderMessage::Move) {
-                                    println!("Error broadcasting move: {e}");
-                                    break;
-                                }
-                                continue;
+                            if attacker_status.owner == player_id {
+                                println!(
+                                    "Player {} is attacking from {} to {} with {} troops, having {} tokens",
+                                    player_id, from, to, troops, attacker_status.amount
+                                );
+                            } else {
+                                println!(
+                                    "Player {} is not the owner of the attacking country {}",
+                                    player_id, from
+                                );
                             }
+                            if let Err(e) = room.tx.send(SenderMessage::Move) {
+                                println!("Error broadcasting move: {e}");
+                                break;
+                            }
+                            continue;
                         } else {
                             println!("Invalid move: attacker or defender status not found.");
                         }
@@ -138,17 +136,16 @@ pub async fn receive_task(params: ReceiveParams) {
                         let mut rng = StdRng::try_from_rng(&mut SysRng).unwrap();
                         let mut users_copy = room.players.lock().await;
                         let mut missions = room.missions.lock().await;
-                        for (id, user) in &mut *users_copy {
-                            user.grant_troops(5);
-
-                            //TODO! Add missions for players
-                        }
                         let mut indexes_mut =
                             users_copy.iter().map(|u| u.0).cloned().collect::<Vec<_>>();
 
                         let indexes = indexes_mut.clone();
-                        dbg!(&indexes_mut);
-                        for (id, _) in MAP.iter() {
+                        for (id, user) in &mut *users_copy {
+                            user.grant_troops(5);
+                            missions.insert(*id, Mission::new_random(*id, &indexes_mut));
+                        }
+                        drop(missions);
+                        for (id, _) in MAP.get_or_init(Default::default).iter() {
                             let i = indexes_mut.remove(match indexes_mut.len() {
                                 0 => break,
                                 1 => 0,
@@ -158,24 +155,20 @@ pub async fn receive_task(params: ReceiveParams) {
                             // user.grant_troops(5);
                             state_vec.insert(
                                 *id,
-                                CStatus {
-                                    country_id: *id,
-                                    location: MAP.get(id).unwrap().name().get_point(),
-                                    tokens: Some(Tokens {
-                                        owner: users_copy[&i].id(),
-                                        amount: 1,
-                                    }),
+                                Tokens {
+                                    owner: users_copy[&i].id(),
+                                    amount: 1,
                                 },
                             );
                             if indexes_mut.is_empty() {
                                 indexes_mut = indexes.clone();
                             }
                         }
-                        dbg!(&state_vec);
+                        drop(users_copy);
                         *room.status.lock().await = state_vec.to_owned();
                         // for (country_id,_) in map.0.clone() {
                         //     let i = indexes_mut.remove(rng.random_range(0..indexes_mut.len()));
-                        //     state_vec.insert(country_id,CStatus{ country_id, location: get_point(map.0.get(&country_id).unwrap().name()), tokens: Some(Tokens { owner: users_copy[i].id(), amount: 1 }) });
+                        //     state_vec.insert(country_id,Tokens{ country_id, location: get_point(map.0.get(&country_id).unwrap().name()), tokens: Some(Tokens { owner: users_copy[i].id(), amount: 1 }) });
                         //     if indexes_mut.is_empty() {
                         //         indexes_mut = indexes.clone();
                         //     }
